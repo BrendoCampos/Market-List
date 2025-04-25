@@ -7,7 +7,7 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Lista de Compras')),
+      appBar: AppBar(title: const Text('Totalize')),
       drawer: const DrawerMenu(),
       body: Center(
         child: Padding(
@@ -18,7 +18,7 @@ class HomePage extends StatelessWidget {
               const Icon(Icons.shopping_cart, size: 80, color: Colors.orange),
               const SizedBox(height: 20),
               Text(
-                'Bem-vindo ao Lista de Compras 🛒',
+                'Bem-vindo ao Totalize 🛒',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),

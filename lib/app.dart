@@ -12,7 +12,7 @@ class MyApp extends ConsumerWidget {
     final themeMode = ref.watch(themeControllerProvider);
 
     return MaterialApp(
-      title: 'Lista de Compras',
+      title: 'Totalize',
       theme: lightTheme,
       darkTheme: darkTheme,
       themeMode: themeMode,

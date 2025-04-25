@@ -20,7 +20,7 @@ class _ShoppingListPageState extends ConsumerState<ShoppingListPage> {
     final controller = ref.read(shoppingListProvider.notifier);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Lista de Compras')),
+      appBar: AppBar(title: const Text('Totalize')),
       body: lists.isEmpty
           ? const Center(
               child: Column(

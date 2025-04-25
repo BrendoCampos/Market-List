@@ -16,8 +16,7 @@ class DrawerMenu extends ConsumerWidget {
         children: [
           UserAccountsDrawerHeader(
             decoration: const BoxDecoration(color: Colors.orange),
-            accountName:
-                const Text('Lista de Compras', style: TextStyle(fontSize: 20)),
+            accountName: const Text('Totalize', style: TextStyle(fontSize: 20)),
             accountEmail: const Text('Organize suas compras 🛒'),
             currentAccountPicture: const CircleAvatar(
               backgroundColor: Colors.white,
