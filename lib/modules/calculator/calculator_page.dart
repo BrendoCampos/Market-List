@@ -1,20 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'calculator_model.dart';
 import 'calculator_controller.dart';
+import 'calculator_model.dart';
 import '../../shared/widgets/confirmation_dialog.dart';
 
-class CalculatorPage extends ConsumerWidget {
+class CalculatorPage extends ConsumerStatefulWidget {
   const CalculatorPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CalculatorPage> createState() => _CalculatorPageState();
+}
+
+class _CalculatorPageState extends ConsumerState<CalculatorPage> {
+  final Map<int, TextEditingController> _descControllers = {};
+  final Map<int, TextEditingController> _qtyControllers = {};
+  final Map<int, TextEditingController> _priceControllers = {};
+
+  @override
+  Widget build(BuildContext context) {
     final items = ref.watch(calculatorProvider);
     final controller = ref.read(calculatorProvider.notifier);
-    final hasItems = items.isNotEmpty;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Calculadora')),
+      appBar: AppBar(
+        title: const Text('Calculadora de Compras'),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -30,7 +40,7 @@ class CalculatorPage extends ConsumerWidget {
                           SizedBox(height: 16),
                           Text('Nenhum item adicionado!'),
                           SizedBox(height: 8),
-                          Text('Toque no botão abaixo para adicionar um.'),
+                          Text('Use o botão abaixo para adicionar um.'),
                         ],
                       ),
                     )
@@ -38,106 +48,110 @@ class CalculatorPage extends ConsumerWidget {
                       itemCount: items.length,
                       itemBuilder: (_, index) {
                         final item = items[index];
-                        return ListTile(
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
-                          title:
-                              Text('${item.description} (x${item.quantity})'),
-                          subtitle:
-                              Text('R\$ ${item.price.toStringAsFixed(2)} cada'),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
+
+                        _descControllers[index] ??=
+                            TextEditingController(text: item.description);
+                        _qtyControllers[index] ??= TextEditingController(
+                            text: item.quantity.toString());
+                        _priceControllers[index] ??= TextEditingController(
+                            text: item.price.toStringAsFixed(2));
+
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: Row(
                             children: [
-                              IconButton(
-                                icon:
-                                    const Icon(Icons.edit, color: Colors.blue),
-                                onPressed: () {
-                                  final descController = TextEditingController(
-                                      text: item.description);
-                                  final qtyController = TextEditingController(
-                                      text: item.quantity.toString());
-                                  final priceController = TextEditingController(
-                                      text: item.price.toStringAsFixed(2));
-
-                                  showModalBottomSheet(
-                                    context: context,
-                                    isScrollControlled: true,
-                                    shape: const RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.vertical(
-                                          top: Radius.circular(16)),
-                                    ),
-                                    builder: (_) => Padding(
-                                      padding: EdgeInsets.only(
-                                        left: 16,
-                                        right: 16,
-                                        top: 24,
-                                        bottom: MediaQuery.of(context)
-                                                .viewInsets
-                                                .bottom +
-                                            16,
+                              Expanded(
+                                flex: 3,
+                                child: TextField(
+                                  controller: _descControllers[index],
+                                  decoration: const InputDecoration(
+                                    hintText: 'Descrição',
+                                    border: OutlineInputBorder(),
+                                    contentPadding: EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 12),
+                                  ),
+                                  onChanged: (value) {
+                                    controller.editItem(
+                                      index,
+                                      CalculatorItem(
+                                        description: value,
+                                        quantity: int.tryParse(
+                                                _qtyControllers[index]?.text ??
+                                                    '0') ??
+                                            0,
+                                        price: double.tryParse(
+                                              (_priceControllers[index]?.text ??
+                                                      '0.0')
+                                                  .replaceAll(',', '.'),
+                                            ) ??
+                                            0.0,
                                       ),
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          const Text('Editar Item',
-                                              style: TextStyle(
-                                                  fontSize: 18,
-                                                  fontWeight: FontWeight.bold)),
-                                          const SizedBox(height: 16),
-                                          TextField(
-                                            controller: descController,
-                                            decoration: const InputDecoration(
-                                                labelText: 'Descrição'),
-                                          ),
-                                          TextField(
-                                            controller: qtyController,
-                                            decoration: const InputDecoration(
-                                                labelText: 'Quantidade'),
-                                            keyboardType: TextInputType.number,
-                                          ),
-                                          TextField(
-                                            controller: priceController,
-                                            decoration: const InputDecoration(
-                                                labelText: 'Preço'),
-                                            keyboardType: TextInputType.number,
-                                          ),
-                                          const SizedBox(height: 16),
-                                          ElevatedButton.icon(
-                                            icon: const Icon(Icons.save),
-                                            label: const Text('Salvar'),
-                                            onPressed: () {
-                                              final desc =
-                                                  descController.text.trim();
-                                              final qty = int.tryParse(
-                                                      qtyController.text) ??
-                                                  item.quantity;
-                                              final price = double.tryParse(
-                                                      priceController.text
-                                                          .replaceAll(
-                                                              ',', '.')) ??
-                                                  item.price;
-
-                                              if (desc.isNotEmpty) {
-                                                ref
-                                                    .read(calculatorProvider
-                                                        .notifier)
-                                                    .editItem(
-                                                      index,
-                                                      CalculatorItem(
-                                                        description: desc,
-                                                        quantity: qty,
-                                                        price: price,
-                                                      ),
-                                                    );
-                                                Navigator.pop(context);
-                                              }
-                                            },
-                                          ),
-                                        ],
+                                    );
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              SizedBox(
+                                width: 80,
+                                child: TextField(
+                                  controller: _qtyControllers[index],
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(
+                                    hintText: 'Qtd',
+                                    border: OutlineInputBorder(),
+                                    contentPadding: EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 12),
+                                  ),
+                                  onChanged: (value) {
+                                    controller.editItem(
+                                      index,
+                                      CalculatorItem(
+                                        description:
+                                            _descControllers[index]?.text ?? '',
+                                        quantity: int.tryParse(value) ?? 0,
+                                        price: double.tryParse(
+                                              (_priceControllers[index]?.text ??
+                                                      '0.0')
+                                                  .replaceAll(',', '.'),
+                                            ) ??
+                                            0.0,
                                       ),
-                                    ),
-                                  );
-                                },
+                                    );
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              SizedBox(
+                                width: 90,
+                                child: TextField(
+                                  controller: _priceControllers[index],
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                          decimal: true),
+                                  decoration: const InputDecoration(
+                                    hintText: 'Preço',
+                                    border: OutlineInputBorder(),
+                                    contentPadding: EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 12),
+                                  ),
+                                  onChanged: (value) {
+                                    final formatted =
+                                        value.replaceAll(',', '.');
+                                    controller.editItem(
+                                      index,
+                                      CalculatorItem(
+                                        description:
+                                            _descControllers[index]?.text ?? '',
+                                        quantity: int.tryParse(
+                                                _qtyControllers[index]?.text ??
+                                                    '0') ??
+                                            0,
+                                        price:
+                                            double.tryParse(formatted) ?? 0.0,
+                                      ),
+                                    );
+                                  },
+                                ),
                               ),
                               IconButton(
                                 icon:
@@ -148,6 +162,9 @@ class CalculatorPage extends ConsumerWidget {
                                     'Deseja remover este item?',
                                   );
                                   if (confirm) {
+                                    _descControllers.remove(index);
+                                    _qtyControllers.remove(index);
+                                    _priceControllers.remove(index);
                                     controller.removeItem(index);
                                   }
                                 },
@@ -158,20 +175,23 @@ class CalculatorPage extends ConsumerWidget {
                       },
                     ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 16),
             Text(
-              'Total da compra: R\$ ${controller.total.toStringAsFixed(2)}',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              'Total: R\$ ${controller.total.toStringAsFixed(2)}',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: hasItems
+              onPressed: items.isNotEmpty
                   ? () async {
                       final confirm = await showConfirmationDialog(
                         context,
                         'Deseja limpar todos os itens da calculadora?',
                       );
                       if (confirm) {
+                        _descControllers.clear();
+                        _qtyControllers.clear();
+                        _priceControllers.clear();
                         controller.clearAll();
                       }
                     }
@@ -188,71 +208,12 @@ class CalculatorPage extends ConsumerWidget {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        child: const Icon(Icons.add),
         onPressed: () {
-          final descController = TextEditingController();
-          final qtyController = TextEditingController();
-          final priceController = TextEditingController();
-
-          showModalBottomSheet(
-            context: context,
-            isScrollControlled: true,
-            shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-            ),
-            builder: (context) => Padding(
-              padding: EdgeInsets.only(
-                left: 16,
-                right: 16,
-                top: 24,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Adicionar Item',
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: descController,
-                    decoration: const InputDecoration(labelText: 'Descrição'),
-                  ),
-                  TextField(
-                    controller: qtyController,
-                    decoration: const InputDecoration(labelText: 'Quantidade'),
-                    keyboardType: TextInputType.number,
-                  ),
-                  TextField(
-                    controller: priceController,
-                    decoration: const InputDecoration(labelText: 'Preço'),
-                    keyboardType: TextInputType.number,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.check),
-                    label: const Text('Adicionar'),
-                    onPressed: () {
-                      final desc = descController.text.trim();
-                      final qty = int.tryParse(qtyController.text) ?? 1;
-                      final price = double.tryParse(
-                              priceController.text.replaceAll(',', '.')) ??
-                          0.0;
-
-                      if (desc.isNotEmpty) {
-                        controller.addItem(
-                          CalculatorItem(
-                              description: desc, quantity: qty, price: price),
-                        );
-                        Navigator.pop(context);
-                      }
-                    },
-                  ),
-                ],
-              ),
-            ),
+          controller.addItem(
+            CalculatorItem(description: '', quantity: 0, price: 0.0),
           );
         },
+        child: const Icon(Icons.add),
       ),
     );
   }
