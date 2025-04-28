@@ -13,8 +13,9 @@ class ShoppingListPage extends ConsumerStatefulWidget {
 
 class _ShoppingListPageState extends ConsumerState<ShoppingListPage> {
   final Map<int, TextEditingController> _titleControllers = {};
-  final Map<String, bool> _editingItems = {};
   final Map<int, TextEditingController> _newItemControllers = {};
+  final Map<String, bool> _editingItems = {};
+  final Map<int, bool> _isExpanded = {};
 
   @override
   Widget build(BuildContext context) {
@@ -30,15 +31,11 @@ class _ShoppingListPageState extends ConsumerState<ShoppingListPage> {
                 children: [
                   Icon(Icons.playlist_add_check, size: 80, color: Colors.grey),
                   SizedBox(height: 16),
-                  Text(
-                    'Nenhuma lista criada ainda!',
-                    style: TextStyle(fontSize: 18, color: Colors.grey),
-                  ),
+                  Text('Nenhuma lista criada ainda!',
+                      style: TextStyle(fontSize: 18, color: Colors.grey)),
                   SizedBox(height: 8),
-                  Text(
-                    'Toque no botão "+" para começar.',
-                    style: TextStyle(fontSize: 14, color: Colors.grey),
-                  ),
+                  Text('Toque no botão "+" para começar.',
+                      style: TextStyle(fontSize: 14, color: Colors.grey)),
                 ],
               ),
             )
@@ -50,6 +47,11 @@ class _ShoppingListPageState extends ConsumerState<ShoppingListPage> {
                 _titleControllers[listIndex] ??=
                     TextEditingController(text: list.title);
                 _newItemControllers[listIndex] ??= TextEditingController();
+                _isExpanded[listIndex] ??= true;
+
+                final totalItems = list.items.length;
+                final completedItems =
+                    list.items.where((item) => item.checked).length;
 
                 return Card(
                   elevation: 2,
@@ -60,23 +62,45 @@ class _ShoppingListPageState extends ConsumerState<ShoppingListPage> {
                     padding: const EdgeInsets.all(16),
                     child: Column(
                       children: [
-                        // Cabeçalho da Lista (Título + Excluir)
+                        // Cabeçalho da Lista
                         Row(
                           children: [
                             Expanded(
-                              child: TextField(
-                                controller: _titleControllers[listIndex],
-                                decoration: const InputDecoration(
-                                  hintText: 'Título da Lista',
-                                  border: InputBorder.none,
-                                ),
-                                style: const TextStyle(
-                                    fontSize: 20, fontWeight: FontWeight.bold),
-                                onSubmitted: (value) {
-                                  controller.editListTitle(
-                                      listIndex, value.trim());
-                                },
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  TextField(
+                                    controller: _titleControllers[listIndex],
+                                    decoration: const InputDecoration(
+                                      hintText: 'Título da Lista',
+                                      border: InputBorder.none,
+                                    ),
+                                    style: const TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold),
+                                    onSubmitted: (value) {
+                                      controller.editListTitle(
+                                          listIndex, value.trim());
+                                    },
+                                  ),
+                                  Text(
+                                    '$completedItems/$totalItems concluídos',
+                                    style: TextStyle(
+                                        fontSize: 14, color: Colors.grey[600]),
+                                  ),
+                                ],
                               ),
+                            ),
+                            IconButton(
+                              icon: Icon(_isExpanded[listIndex]!
+                                  ? Icons.expand_less
+                                  : Icons.expand_more),
+                              onPressed: () {
+                                setState(() {
+                                  _isExpanded[listIndex] =
+                                      !_isExpanded[listIndex]!;
+                                });
+                              },
                             ),
                             IconButton(
                               icon: const Icon(Icons.delete, color: Colors.red),
@@ -93,114 +117,137 @@ class _ShoppingListPageState extends ConsumerState<ShoppingListPage> {
                             ),
                           ],
                         ),
-                        const Divider(),
+                        if (_isExpanded[listIndex]!)
+                          Column(
+                            children: [
+                              const Divider(),
+                              AnimatedList(
+                                key: GlobalKey<AnimatedListState>(),
+                                shrinkWrap: true,
+                                initialItemCount: list.items.length,
+                                physics: const NeverScrollableScrollPhysics(),
+                                itemBuilder: (_, itemIndex, __) {
+                                  // Ordenar: não marcados primeiro
+                                  final orderedItems = [
+                                    ...list.items.where((e) => !e.checked),
+                                    ...list.items.where((e) => e.checked),
+                                  ];
+                                  final item = orderedItems[itemIndex];
+                                  final key = '${listIndex}_$itemIndex';
+                                  final itemController =
+                                      TextEditingController(text: item.name);
 
-                        // Itens da Lista
-                        ...List.generate(list.items.length, (itemIndex) {
-                          final item = list.items[itemIndex];
-                          final key = '${listIndex}_$itemIndex';
-                          final itemController =
-                              TextEditingController(text: item.name);
-
-                          return ListTile(
-                            leading: Checkbox(
-                              value: item.checked,
-                              onChanged: (_) =>
-                                  controller.toggleItem(listIndex, itemIndex),
-                            ),
-                            title: _editingItems[key] == true
-                                ? TextField(
-                                    controller: itemController,
-                                    autofocus: true,
-                                    style: TextStyle(
-                                      decoration: item.checked
-                                          ? TextDecoration.lineThrough
-                                          : null,
-                                      color: item.checked ? Colors.grey : null,
+                                  return ListTile(
+                                    leading: Checkbox(
+                                      value: item.checked,
+                                      onChanged: (_) {
+                                        controller.toggleItem(listIndex,
+                                            list.items.indexOf(item));
+                                      },
                                     ),
-                                    onSubmitted: (value) {
-                                      controller.editItemName(
-                                          listIndex, itemIndex, value.trim());
-                                      setState(
-                                          () => _editingItems[key] = false);
-                                    },
-                                    onEditingComplete: () {
-                                      controller.editItemName(
-                                          listIndex,
-                                          itemIndex,
-                                          itemController.text.trim());
-                                      setState(
-                                          () => _editingItems[key] = false);
-                                    },
-                                  )
-                                : GestureDetector(
-                                    onTap: () => setState(
-                                        () => _editingItems[key] = true),
-                                    child: Text(
-                                      item.name,
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        decoration: item.checked
-                                            ? TextDecoration.lineThrough
-                                            : null,
-                                        color:
-                                            item.checked ? Colors.grey : null,
-                                      ),
+                                    title: _editingItems[key] == true
+                                        ? TextField(
+                                            controller: itemController,
+                                            autofocus: true,
+                                            style: TextStyle(
+                                              decoration: item.checked
+                                                  ? TextDecoration.lineThrough
+                                                  : null,
+                                              color: item.checked
+                                                  ? Colors.grey
+                                                  : null,
+                                            ),
+                                            onSubmitted: (value) {
+                                              controller.editItemName(
+                                                  listIndex,
+                                                  list.items.indexOf(item),
+                                                  value.trim());
+                                              setState(() =>
+                                                  _editingItems[key] = false);
+                                            },
+                                            onEditingComplete: () {
+                                              controller.editItemName(
+                                                  listIndex,
+                                                  list.items.indexOf(item),
+                                                  itemController.text.trim());
+                                              setState(() =>
+                                                  _editingItems[key] = false);
+                                            },
+                                          )
+                                        : GestureDetector(
+                                            onTap: () => setState(() =>
+                                                _editingItems[key] = true),
+                                            child: Text(
+                                              item.name,
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                decoration: item.checked
+                                                    ? TextDecoration.lineThrough
+                                                    : null,
+                                                color: item.checked
+                                                    ? Colors.grey
+                                                    : null,
+                                              ),
+                                            ),
+                                          ),
+                                    trailing: IconButton(
+                                      icon: const Icon(Icons.delete_outline,
+                                          color: Colors.red),
+                                      onPressed: () async {
+                                        final confirm =
+                                            await showConfirmationDialog(
+                                          context,
+                                          'Deseja excluir este item?',
+                                        );
+                                        if (confirm) {
+                                          controller.removeItem(listIndex,
+                                              list.items.indexOf(item));
+                                        }
+                                      },
                                     ),
-                                  ),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.delete_outline,
-                                  color: Colors.red),
-                              onPressed: () async {
-                                final confirm = await showConfirmationDialog(
-                                  context,
-                                  'Deseja excluir este item?',
-                                );
-                                if (confirm) {
-                                  controller.removeItem(listIndex, itemIndex);
-                                }
-                              },
-                            ),
-                          );
-                        }),
-
-                        const Divider(),
-
-                        // Campo para adicionar novo item
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _newItemControllers[listIndex],
-                                decoration: const InputDecoration(
-                                  hintText: 'Escreva um novo item...',
-                                  border: InputBorder.none,
-                                ),
-                                onSubmitted: (value) {
-                                  final name = value.trim();
-                                  if (name.isNotEmpty) {
-                                    controller.addItem(listIndex, name);
-                                    _newItemControllers[listIndex]?.clear();
-                                  }
+                                  );
                                 },
                               ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.add_circle_outline,
-                                  color: Colors.green),
-                              onPressed: () {
-                                final name = _newItemControllers[listIndex]
-                                        ?.text
-                                        .trim() ??
-                                    '';
-                                if (name.isNotEmpty) {
-                                  controller.addItem(listIndex, name);
-                                  _newItemControllers[listIndex]?.clear();
-                                }
-                              },
-                            ),
-                          ],
-                        ),
+                              const Divider(),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextField(
+                                      controller:
+                                          _newItemControllers[listIndex],
+                                      decoration: const InputDecoration(
+                                        hintText: 'Escreva um novo item...',
+                                        border: InputBorder.none,
+                                      ),
+                                      onSubmitted: (value) {
+                                        final name = value.trim();
+                                        if (name.isNotEmpty) {
+                                          controller.addItem(listIndex, name);
+                                          _newItemControllers[listIndex]
+                                              ?.clear();
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.add_circle_outline,
+                                        color: Colors.green),
+                                    onPressed: () {
+                                      final name =
+                                          _newItemControllers[listIndex]
+                                                  ?.text
+                                                  .trim() ??
+                                              '';
+                                      if (name.isNotEmpty) {
+                                        controller.addItem(listIndex, name);
+                                        _newItemControllers[listIndex]?.clear();
+                                      }
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                       ],
                     ),
                   ),
