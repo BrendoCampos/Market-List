@@ -33,8 +33,8 @@ class CalculatorController extends StateNotifier<List<CalculatorItem>> {
     _saveItems();
   }
 
-  void removeItem(int index) {
-    final newList = [...state]..removeAt(index);
+  void removeItemById(String id) {
+    final newList = [...state]..removeWhere((item) => item.id == id);
     state = newList;
     _saveItems();
   }
@@ -44,9 +44,9 @@ class CalculatorController extends StateNotifier<List<CalculatorItem>> {
     _saveItems();
   }
 
-  void editItem(int index, CalculatorItem newItem) {
-    final updated = [...state];
-    updated[index] = newItem;
+  void editItem(String id, CalculatorItem newItem) {
+    final updated =
+        state.map((item) => item.id == id ? newItem : item).toList();
     state = updated;
     _saveItems();
   }
