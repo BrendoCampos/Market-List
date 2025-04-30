@@ -69,19 +69,29 @@ class _ShoppingListPageState extends ConsumerState<ShoppingListPage> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  TextField(
-                                    controller: _titleControllers[listIndex],
-                                    decoration: const InputDecoration(
-                                      hintText: 'Título da Lista',
-                                      border: InputBorder.none,
-                                    ),
-                                    style: const TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold),
-                                    onSubmitted: (value) {
-                                      controller.editListTitle(
-                                          listIndex, value.trim());
+                                  Focus(
+                                    onFocusChange: (hasFocus) {
+                                      if (!hasFocus) {
+                                        final newTitle =
+                                            _titleControllers[listIndex]
+                                                    ?.text
+                                                    .trim() ??
+                                                '';
+                                        controller.editListTitle(
+                                            listIndex, newTitle);
+                                      }
                                     },
+                                    child: TextField(
+                                      controller: _titleControllers[listIndex],
+                                      decoration: const InputDecoration(
+                                        hintText: 'Título da Lista',
+                                        border: InputBorder.none,
+                                      ),
+                                      style: const TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
                                   ),
                                   Text(
                                     '$completedItems/$totalItems concluídos',
@@ -127,7 +137,6 @@ class _ShoppingListPageState extends ConsumerState<ShoppingListPage> {
                                 initialItemCount: list.items.length,
                                 physics: const NeverScrollableScrollPhysics(),
                                 itemBuilder: (_, itemIndex, __) {
-                                  // Ordenar: não marcados primeiro
                                   final orderedItems = [
                                     ...list.items.where((e) => !e.checked),
                                     ...list.items.where((e) => e.checked),
