@@ -281,7 +281,8 @@ class _CalculatorPageState extends ConsumerState<CalculatorPage> {
           final newItem =
               CalculatorItem(description: '', quantity: 0, price: 0.0);
           controller.addItem(newItem);
-          _listKey.currentState?.insertItem(controller.state.length - 1);
+          final length = ref.read(calculatorProvider).length;
+          _listKey.currentState?.insertItem(length - 1);
         },
         child: const Icon(Icons.add),
       ),
