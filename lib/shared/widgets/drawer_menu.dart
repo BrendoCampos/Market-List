@@ -33,6 +33,11 @@ class DrawerMenu extends ConsumerWidget {
             title: const Text('Lista de Compras'),
             onTap: () => Navigator.pushNamed(context, '/shopping-list'),
           ),
+          ListTile(
+            leading: const Icon(Icons.attach_money),
+            title: const Text('Dívidas Mensais'),
+            onTap: () => Navigator.pushNamed(context, '/debts'),
+          ),
           const Divider(),
           ListTile(
             leading: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
