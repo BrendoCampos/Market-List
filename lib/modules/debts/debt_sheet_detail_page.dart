@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'debts_controller.dart';
 import 'debts_model.dart';
 import '../../shared/widgets/confirmation_dialog.dart';
@@ -29,6 +31,8 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
   bool _isEditingName = false;
   bool _isAddingNewDebt = false;
 
+  Set<String> _paidDebtIds = {};
+
   @override
   void initState() {
     super.initState();
@@ -41,16 +45,31 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
     _focusBudget30.addListener(() {
       if (!_focusBudget30.hasFocus) _saveBudgetField(day: 30);
     });
+
+    _loadPaidDebts();
+  }
+
+  Future<void> _loadPaidDebts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = 'paid_debts_${widget.sheetId}';
+    final list = prefs.getStringList(key) ?? [];
+    setState(() {
+      _paidDebtIds = list.toSet();
+    });
+  }
+
+  Future<void> _savePaidDebts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = 'paid_debts_${widget.sheetId}';
+    await prefs.setStringList(key, _paidDebtIds.toList());
   }
 
   void _saveBudgetField({required int day}) {
-    final sheets = ref.read(debtsProvider);
     final controller = ref.read(debtsProvider.notifier);
-    final sheet = sheets.firstWhere((s) => s.id == widget.sheetId);
-
+    final sheet =
+        ref.read(debtsProvider).firstWhere((s) => s.id == widget.sheetId);
     final controllerText =
         day == 15 ? _budget15Controller.text : _budget30Controller.text;
-
     final parsed = double.tryParse(controllerText.replaceAll(',', '.')) ?? 0.0;
 
     controller.editSheet(sheet.copyWith(
@@ -72,6 +91,7 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
         ],
       );
       controller.editSheet(updated);
+
       _newDebtTitle.clear();
       _newDebtValue.clear();
       _selectedDay = null;
@@ -85,8 +105,10 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
     final controller = ref.read(debtsProvider.notifier);
     final sheet = sheets.firstWhere((s) => s.id == widget.sheetId);
 
-    final debts15 = sheet.debts.where((d) => d.day == 15).toList();
-    final debts30 = sheet.debts.where((d) => d.day == 30).toList();
+    final debts15 = sheet.debts.where((d) => d.day == 15).toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final debts30 = sheet.debts.where((d) => d.day == 30).toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
     final total15 = debts15.fold(0.0, (sum, d) => sum + d.value);
     final total30 = debts30.fold(0.0, (sum, d) => sum + d.value);
     final totalDebt = total15 + total30;
@@ -139,7 +161,35 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            _buildTopCard(totalDebt, totalRemaining),
+            ExpansionTile(
+              initiallyExpanded: false,
+              title: const Text('Resumo Financeiro'),
+              tilePadding: EdgeInsets.zero,
+              childrenPadding: const EdgeInsets.only(bottom: 12),
+              children: [
+                _buildTopCard(totalDebt, totalRemaining),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildTopCardCustom(
+                        title: 'Dívidas dia 15',
+                        total: total15,
+                        saldo: sheet.budget15 - total15,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildTopCardCustom(
+                        title: 'Dívidas dia 30',
+                        total: total30,
+                        saldo: sheet.budget30 - total30,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
             const SizedBox(height: 12),
             _buildBudgetFields(),
             const SizedBox(height: 16),
@@ -154,6 +204,12 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
   }
 
   Widget _buildTopCard(double total, double saldo) {
+    return _buildTopCardCustom(
+        title: 'Total de Dívidas', total: total, saldo: saldo);
+  }
+
+  Widget _buildTopCardCustom(
+      {required String title, required double total, required double saldo}) {
     return Card(
       color: Colors.purple.shade50,
       elevation: 1,
@@ -162,11 +218,14 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            const Text('Total de Dívidas', style: TextStyle(fontSize: 16)),
+            Text(title, style: const TextStyle(fontSize: 16)),
             Text(
               'R\$ ${total.toStringAsFixed(2)}',
               style: const TextStyle(
-                  fontSize: 26, fontWeight: FontWeight.bold, color: Colors.red),
+                fontSize: 26,
+                fontWeight: FontWeight.bold,
+                color: Colors.red,
+              ),
             ),
             const SizedBox(height: 6),
             Text(
@@ -285,57 +344,34 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
     double total15,
     double total30,
   ) {
-    if (sheet.debts.isEmpty) {
-      return Expanded(
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: const [
-              Icon(Icons.receipt_long, size: 64, color: Colors.grey),
-              SizedBox(height: 12),
-              Text('Nenhuma dívida adicionada ainda.',
-                  style: TextStyle(color: Colors.grey)),
-              Text('Use o botão acima para começar.',
-                  style: TextStyle(color: Colors.grey)),
-            ],
-          ),
-        ),
+    Widget buildSection(String title, List<DebtItem> debts, double total) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (debts.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(title,
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+            ),
+            ...debts
+                .map((item) => _buildDebtTile(item, sheet, controller))
+                .toList(),
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 12),
+              child: Text('Total: R\$ ${total.toStringAsFixed(2)}',
+                  style: const TextStyle(fontWeight: FontWeight.w500)),
+            ),
+          ]
+        ],
       );
     }
 
     return Expanded(
       child: ListView(
         children: [
-          if (debts15.isNotEmpty) ...[
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text('📅 Dívidas do dia 15',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-            ...debts15
-                .map((item) => _buildDebtTile(item, sheet, controller))
-                .toList(),
-            Padding(
-              padding: const EdgeInsets.only(top: 4, bottom: 12),
-              child: Text('Total: R\$ ${total15.toStringAsFixed(2)}',
-                  style: const TextStyle(fontWeight: FontWeight.w500)),
-            ),
-          ],
-          if (debts30.isNotEmpty) ...[
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text('📅 Dívidas do dia 30',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-            ...debts30
-                .map((item) => _buildDebtTile(item, sheet, controller))
-                .toList(),
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text('Total: R\$ ${total30.toStringAsFixed(2)}',
-                  style: const TextStyle(fontWeight: FontWeight.w500)),
-            ),
-          ],
+          buildSection('📅 Dívidas do dia 15', debts15, total15),
+          buildSection('📅 Dívidas do dia 30', debts30, total30),
         ],
       ),
     );
@@ -343,11 +379,26 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
 
   Widget _buildDebtTile(
       DebtItem item, DebtSheet sheet, DebtsController controller) {
+    final isPaid = _paidDebtIds.contains(item.id);
     return Card(
       elevation: 1,
+      color: isPaid ? Colors.green.shade100 : null,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
+        leading: Checkbox(
+          value: isPaid,
+          onChanged: (v) {
+            setState(() {
+              if (v == true) {
+                _paidDebtIds.add(item.id);
+              } else {
+                _paidDebtIds.remove(item.id);
+              }
+              _savePaidDebts();
+            });
+          },
+        ),
         title: Text(item.title,
             style: const TextStyle(fontWeight: FontWeight.w500)),
         subtitle:
@@ -380,6 +431,8 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
                   final updatedDebts = [...sheet.debts]
                     ..removeWhere((d) => d.id == item.id);
                   controller.editSheet(sheet.copyWith(debts: updatedDebts));
+                  _paidDebtIds.remove(item.id);
+                  _savePaidDebts();
                 }
               },
             ),
