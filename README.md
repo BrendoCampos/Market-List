@@ -6,53 +6,87 @@
 
 ✨ Funcionalidades:
 
-✅ Criar múltiplas listas de compras
+**Lista de Compras:**
 
-✅ Adicionar e editar itens livremente
+✅ Criar múltiplas listas de compras com títulos editáveis
+
+✅ Adicionar, editar e excluir itens livremente
 
 ✅ Marcar itens como concluídos (com visual riscado)
 
-✅ Excluir itens e listas facilmente
+✅ Contador de progresso (X/Y itens concluídos)
 
-✅ Acesso rápido à Calculadora de Compras
+✅ Expandir/colapsar listas
 
-✅ Sugestão automática de itens enquanto digita, baseada em histórico
+**Calculadora de Compras:**
 
-✅ Tema claro e escuro (modo dinâmico)
+✅ Adicionar produtos com nome, quantidade e preço
+
+✅ Cálculo automático do total (quantidade × preço)
+
+✅ Editar e remover produtos
+
+✅ Limpar todos os itens
+
+**Controle de Dívidas Mensais:**
+
+✅ Criar fichas de dívidas organizadas
+
+✅ Definir orçamento quinzenal e mensal
+
+✅ Registrar dívidas com título, valor e dia de vencimento
+
+✅ Cálculo automático do total por ficha
+
+**Geral:**
+
+✅ Tema claro e escuro com alternância persistente
+
+✅ Persistência local de todos os dados
 
 ✅ Visual leve, moderno e adaptado a smartphones
 
-📱 Layouts principais:
+📱 Módulos principais:
 
-Home: Tela inicial com boas-vindas e acesso ao menu lateral
+**Home:** Tela inicial com boas-vindas e atalhos rápidos
 
-Lista de Compras: Criação e gerenciamento de listas e itens
+**Lista de Compras:** Gerenciamento completo de múltiplas listas e itens
 
-Calculadora: Tela para calcular o valor total dos produtos
+**Calculadora:** Cálculo de valor total de produtos com quantidade e preço
 
-Menu Lateral: Acesso rápido entre seções e alternância de tema
+**Dívidas Mensais:** Controle de orçamento e dívidas com vencimentos
+
+**Menu Lateral:** Navegação entre módulos e alternância de tema
 
 🛠 Tecnologias utilizadas:
 
-Flutter – SDK de desenvolvimento mobile
+**Flutter** – SDK de desenvolvimento multiplataforma
 
-Riverpod – Gerenciamento de estado
+**Riverpod** – Gerenciamento de estado reativo (StateNotifier)
 
-SharedPreferences – Armazenamento local persistente
+**SharedPreferences** – Persistência local com serialização JSON
 
-flutter_launcher_icons – Configuração de ícone de aplicativo
+**share_plus** – Compartilhamento de dados
+
+**UUID** – Geração de IDs únicos para dívidas
+
+**flutter_launcher_icons** – Configuração de ícone do app
 
 💡 Melhorias futuras:
 
+Sugestão automática de itens baseada em histórico
+
 Histórico de compras finalizadas
 
-Backup/Restaurar listas
+Backup/Restaurar dados na nuvem
 
 Compartilhar listas via WhatsApp ou e-mail
 
-Agrupar listas por categorias (Farmácia, Supermercado, Churrasco, etc.)
+Categorização de listas (Farmácia, Supermercado, etc.)
 
-Definir orçamento por lista
+Notificações de vencimento de dívidas
+
+Gráficos de gastos mensais
 
 Widget de lista ativa na tela inicial do celular
 
