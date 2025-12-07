@@ -138,6 +138,8 @@ final ThemeData darkTheme = ThemeData(
       borderSide: const BorderSide(color: AppColors.primaryLight, width: 2),
     ),
     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+    hintStyle: GoogleFonts.inter(color: AppColors.textSecondaryDark),
+    labelStyle: GoogleFonts.inter(color: AppColors.textSecondaryDark),
   ),
   elevatedButtonTheme: ElevatedButtonThemeData(
     style: ElevatedButton.styleFrom(

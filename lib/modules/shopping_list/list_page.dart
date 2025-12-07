@@ -73,7 +73,15 @@ class _ShoppingListPageState extends ConsumerState<ShoppingListPage> {
         actions: [
           IconButton(
             icon: Icon(_searchQuery.isEmpty ? Icons.search : Icons.close),
-            onPressed: () => setState(() => _searchQuery = ''),
+            onPressed: () {
+              setState(() {
+                if (_searchQuery.isEmpty) {
+                  _searchQuery = ' ';
+                } else {
+                  _searchQuery = '';
+                }
+              });
+            },
           ),
         ],
       ),

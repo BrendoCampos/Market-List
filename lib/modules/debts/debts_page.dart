@@ -114,6 +114,9 @@ class DebtsPage extends ConsumerWidget {
                                               .titleLarge
                                               ?.copyWith(
                                                 fontWeight: FontWeight.bold,
+                                                color: Theme.of(context).brightness == Brightness.dark
+                                                    ? AppColors.textPrimaryDark
+                                                    : AppColors.textPrimary,
                                               ),
                                         ),
                                         const SizedBox(height: 4),
