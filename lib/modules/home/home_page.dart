@@ -3,12 +3,18 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/app_colors.dart';
 import '../../shared/widgets/drawer_menu.dart';
+import '../../shared/widgets/main_navigation.dart';
 import '../shopping_list/list_controller.dart';
 import '../calculator/calculator_controller.dart';
 import '../debts/debts_controller.dart';
 
 class HomePage extends ConsumerWidget {
   const HomePage({super.key});
+
+  static void _navigateToTab(BuildContext context, int index) {
+    final mainNavState = context.findAncestorStateOfType<MainNavigationState>();
+    mainNavState?.setIndex(index);
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -126,7 +132,7 @@ class HomePage extends ConsumerWidget {
               title: 'Nova Lista',
               subtitle: 'Crie uma lista de compras',
               gradient: AppColors.primaryGradient,
-              onTap: () {},
+              onTap: () => _navigateToTab(context, 1),
             ).animate().fadeIn(delay: 400.ms).scale(begin: const Offset(0.8, 0.8)),
 
             const SizedBox(height: 12),
@@ -137,7 +143,7 @@ class HomePage extends ConsumerWidget {
               gradient: const LinearGradient(
                 colors: [AppColors.secondary, AppColors.secondaryLight],
               ),
-              onTap: () {},
+              onTap: () => _navigateToTab(context, 2),
             ).animate().fadeIn(delay: 500.ms).scale(begin: const Offset(0.8, 0.8)),
 
             const SizedBox(height: 12),
@@ -146,7 +152,7 @@ class HomePage extends ConsumerWidget {
               title: 'Gerenciar Dívidas',
               subtitle: 'Controle seu orçamento mensal',
               gradient: AppColors.accentGradient,
-              onTap: () {},
+              onTap: () => _navigateToTab(context, 3),
             ).animate().fadeIn(delay: 600.ms).scale(begin: const Offset(0.8, 0.8)),
           ],
         ),

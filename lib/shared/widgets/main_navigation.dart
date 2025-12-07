@@ -9,11 +9,15 @@ class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
 
   @override
-  State<MainNavigation> createState() => _MainNavigationState();
+  State<MainNavigation> createState() => MainNavigationState();
 }
 
-class _MainNavigationState extends State<MainNavigation> {
+class MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
+
+  void setIndex(int index) {
+    setState(() => _currentIndex = index);
+  }
 
   final List<Widget> _pages = const [
     HomePage(),
