@@ -3,35 +3,41 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'debts_controller.dart';
 import 'debts_model.dart';
 import '../../shared/widgets/confirmation_dialog.dart';
+import '../../shared/widgets/error_snackbar.dart';
+import '../../shared/widgets/empty_state.dart';
+import '../../shared/widgets/loading_overlay.dart';
+import '../../shared/utils/export_helper.dart';
 
 class DebtsPage extends ConsumerWidget {
   const DebtsPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final sheets = ref.watch(debtsProvider);
+    final state = ref.watch(debtsProvider);
     final controller = ref.read(debtsProvider.notifier);
+    final sheets = state.sheets;
+
+    // Show error message if exists
+    if (state.errorMessage != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        showErrorSnackbar(context, state.errorMessage!, controller.clearError);
+        controller.clearError();
+      });
+    }
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Dívidas Mensais'),
       ),
-      body: sheets.isEmpty
-          ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.sticky_note_2_outlined,
-                      size: 80, color: Colors.grey),
-                  SizedBox(height: 12),
-                  Text('Nenhuma folha criada ainda.',
-                      style: TextStyle(color: Colors.grey)),
-                  Text('Use o botão "+" para começar.',
-                      style: TextStyle(color: Colors.grey)),
-                ],
-              ),
-            )
-          : ListView.builder(
+      body: LoadingOverlay(
+        isLoading: state.isLoading,
+        child: sheets.isEmpty
+            ? const EmptyState(
+                icon: Icons.sticky_note_2_outlined,
+                title: 'Nenhuma folha criada ainda.',
+                subtitle: 'Use o botão "+" para começar.',
+              )
+            : ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: sheets.length,
               itemBuilder: (_, index) {
@@ -79,6 +85,11 @@ class DebtsPage extends ConsumerWidget {
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        IconButton(
+                          icon: const Icon(Icons.share),
+                          tooltip: 'Compartilhar',
+                          onPressed: () => ExportHelper.exportDebtSheet(sheet),
+                        ),
                         IconButton(
                           icon: const Icon(Icons.copy, color: Colors.blue),
                           tooltip: 'Duplicar folha',
@@ -129,6 +140,7 @@ class DebtsPage extends ConsumerWidget {
                 );
               },
             ),
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           final novaFolha = DebtSheet(

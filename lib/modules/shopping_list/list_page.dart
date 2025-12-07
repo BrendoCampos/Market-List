@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../shared/widgets/confirmation_dialog.dart';
+import '../../shared/widgets/error_snackbar.dart';
+import '../../shared/widgets/empty_state.dart';
+import '../../shared/widgets/loading_overlay.dart';
+import '../../shared/utils/export_helper.dart';
 import 'list_controller.dart';
 
 class ShoppingListPage extends ConsumerStatefulWidget {
@@ -11,42 +15,82 @@ class ShoppingListPage extends ConsumerStatefulWidget {
 }
 
 class _ShoppingListPageState extends ConsumerState<ShoppingListPage> {
-  final Map<int, TextEditingController> _titleControllers = {};
-  final Map<int, TextEditingController> _newItemControllers = {};
+  final Map<String, TextEditingController> _titleControllers = {};
+  final Map<String, TextEditingController> _newItemControllers = {};
   final Map<String, bool> _editingItems = {};
-  final Map<int, bool> _isExpanded = {};
+  final Map<String, bool> _isExpanded = {};
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    for (var controller in _titleControllers.values) {
+      controller.dispose();
+    }
+    for (var controller in _newItemControllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final lists = ref.watch(shoppingListProvider);
+    final state = ref.watch(shoppingListProvider);
     final controller = ref.read(shoppingListProvider.notifier);
+    final lists = state.lists;
+
+    // Show error message if exists
+    if (state.errorMessage != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        showErrorSnackbar(context, state.errorMessage!, controller.clearError);
+        controller.clearError();
+      });
+    }
+
+    final filteredLists = _searchQuery.isEmpty
+        ? lists
+        : lists.where((list) {
+            final titleMatch = list.title.toLowerCase().contains(_searchQuery.toLowerCase());
+            final itemMatch = list.items.any((item) => 
+              item.name.toLowerCase().contains(_searchQuery.toLowerCase()));
+            return titleMatch || itemMatch;
+          }).toList();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Lista de Compras')),
-      body: lists.isEmpty
-          ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.playlist_add_check, size: 80, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text('Nenhuma lista criada ainda!',
-                      style: TextStyle(fontSize: 18, color: Colors.grey)),
-                  SizedBox(height: 8),
-                  Text('Toque no botão "+" para começar.',
-                      style: TextStyle(fontSize: 14, color: Colors.grey)),
-                ],
+      appBar: AppBar(
+        title: _searchQuery.isEmpty
+            ? const Text('Lista de Compras')
+            : TextField(
+                autofocus: true,
+                decoration: const InputDecoration(
+                  hintText: 'Buscar...',
+                  border: InputBorder.none,
+                ),
+                onChanged: (value) => setState(() => _searchQuery = value),
               ),
-            )
+        actions: [
+          IconButton(
+            icon: Icon(_searchQuery.isEmpty ? Icons.search : Icons.close),
+            onPressed: () => setState(() => _searchQuery = ''),
+          ),
+        ],
+      ),
+      body: LoadingOverlay(
+        isLoading: state.isLoading,
+        child: filteredLists.isEmpty
+            ? EmptyState(
+                icon: _searchQuery.isEmpty ? Icons.playlist_add_check : Icons.search_off,
+                title: _searchQuery.isEmpty ? 'Nenhuma lista criada ainda!' : 'Nenhum resultado',
+                subtitle: _searchQuery.isEmpty ? 'Toque no botão "+" para começar.' : 'Tente outro termo.',
+              )
           : ListView.builder(
               padding: const EdgeInsets.all(16),
-              itemCount: lists.length,
+              itemCount: filteredLists.length,
               itemBuilder: (_, listIndex) {
-                final list = lists[listIndex];
-                _titleControllers[listIndex] ??=
+                final list = filteredLists[listIndex];
+                _titleControllers[list.id] ??=
                     TextEditingController(text: list.title);
-                _newItemControllers[listIndex] ??= TextEditingController();
-                _isExpanded[listIndex] ??= true;
+                _newItemControllers[list.id] ??= TextEditingController();
+                _isExpanded[list.id] ??= true;
 
                 final totalItems = list.items.length;
                 final completedItems =
@@ -72,16 +116,16 @@ class _ShoppingListPageState extends ConsumerState<ShoppingListPage> {
                                     onFocusChange: (hasFocus) {
                                       if (!hasFocus) {
                                         final newTitle =
-                                            _titleControllers[listIndex]
+                                            _titleControllers[list.id]
                                                     ?.text
                                                     .trim() ??
                                                 '';
                                         controller.editListTitle(
-                                            listIndex, newTitle);
+                                            list.id, newTitle);
                                       }
                                     },
                                     child: TextField(
-                                      controller: _titleControllers[listIndex],
+                                      controller: _titleControllers[list.id],
                                       decoration: const InputDecoration(
                                         hintText: 'Título da Lista',
                                         border: InputBorder.none,
@@ -101,15 +145,19 @@ class _ShoppingListPageState extends ConsumerState<ShoppingListPage> {
                               ),
                             ),
                             IconButton(
-                              icon: Icon(_isExpanded[listIndex]!
+                              icon: Icon(_isExpanded[list.id]!
                                   ? Icons.expand_less
                                   : Icons.expand_more),
                               onPressed: () {
                                 setState(() {
-                                  _isExpanded[listIndex] =
-                                      !_isExpanded[listIndex]!;
+                                  _isExpanded[list.id] =
+                                      !_isExpanded[list.id]!;
                                 });
                               },
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.share),
+                              onPressed: () => ExportHelper.exportShoppingList(list),
                             ),
                             IconButton(
                               icon: const Icon(Icons.delete, color: Colors.red),
@@ -119,14 +167,17 @@ class _ShoppingListPageState extends ConsumerState<ShoppingListPage> {
                                   'Deseja excluir esta lista?',
                                 );
                                 if (confirm) {
-                                  _titleControllers.remove(listIndex);
-                                  controller.removeList(listIndex);
+                                  _titleControllers[list.id]?.dispose();
+                                  _titleControllers.remove(list.id);
+                                  _newItemControllers[list.id]?.dispose();
+                                  _newItemControllers.remove(list.id);
+                                  controller.removeList(list.id);
                                 }
                               },
                             ),
                           ],
                         ),
-                        if (_isExpanded[listIndex]!)
+                        if (_isExpanded[list.id]!)
                           Column(
                             children: [
                               const Divider(),
@@ -141,7 +192,7 @@ class _ShoppingListPageState extends ConsumerState<ShoppingListPage> {
                                     ...list.items.where((e) => e.checked),
                                   ];
                                   final item = orderedItems[itemIndex];
-                                  final key = '${listIndex}_$itemIndex';
+                                  final key = '${list.id}_${item.id}';
                                   final itemController =
                                       TextEditingController(text: item.name);
 
@@ -149,8 +200,7 @@ class _ShoppingListPageState extends ConsumerState<ShoppingListPage> {
                                     leading: Checkbox(
                                       value: item.checked,
                                       onChanged: (_) {
-                                        controller.toggleItem(listIndex,
-                                            list.items.indexOf(item));
+                                        controller.toggleItem(list.id, item.id);
                                       },
                                     ),
                                     title: _editingItems[key] == true
@@ -167,16 +217,16 @@ class _ShoppingListPageState extends ConsumerState<ShoppingListPage> {
                                             ),
                                             onSubmitted: (value) {
                                               controller.editItemName(
-                                                  listIndex,
-                                                  list.items.indexOf(item),
+                                                  list.id,
+                                                  item.id,
                                                   value.trim());
                                               setState(() =>
                                                   _editingItems[key] = false);
                                             },
                                             onEditingComplete: () {
                                               controller.editItemName(
-                                                  listIndex,
-                                                  list.items.indexOf(item),
+                                                  list.id,
+                                                  item.id,
                                                   itemController.text.trim());
                                               setState(() =>
                                                   _editingItems[key] = false);
@@ -208,8 +258,7 @@ class _ShoppingListPageState extends ConsumerState<ShoppingListPage> {
                                           'Deseja excluir este item?',
                                         );
                                         if (confirm) {
-                                          controller.removeItem(listIndex,
-                                              list.items.indexOf(item));
+                                          controller.removeItem(list.id, item.id);
                                         }
                                       },
                                     ),
@@ -222,7 +271,7 @@ class _ShoppingListPageState extends ConsumerState<ShoppingListPage> {
                                   Expanded(
                                     child: TextField(
                                       controller:
-                                          _newItemControllers[listIndex],
+                                          _newItemControllers[list.id],
                                       decoration: const InputDecoration(
                                         hintText: 'Escreva um novo item...',
                                         border: InputBorder.none,
@@ -230,8 +279,8 @@ class _ShoppingListPageState extends ConsumerState<ShoppingListPage> {
                                       onSubmitted: (value) {
                                         final name = value.trim();
                                         if (name.isNotEmpty) {
-                                          controller.addItem(listIndex, name);
-                                          _newItemControllers[listIndex]
+                                          controller.addItem(list.id, name);
+                                          _newItemControllers[list.id]
                                               ?.clear();
                                         }
                                       },
@@ -242,13 +291,13 @@ class _ShoppingListPageState extends ConsumerState<ShoppingListPage> {
                                         color: Colors.green),
                                     onPressed: () {
                                       final name =
-                                          _newItemControllers[listIndex]
+                                          _newItemControllers[list.id]
                                                   ?.text
                                                   .trim() ??
                                               '';
                                       if (name.isNotEmpty) {
-                                        controller.addItem(listIndex, name);
-                                        _newItemControllers[listIndex]?.clear();
+                                        controller.addItem(list.id, name);
+                                        _newItemControllers[list.id]?.clear();
                                       }
                                     },
                                   ),
@@ -262,6 +311,7 @@ class _ShoppingListPageState extends ConsumerState<ShoppingListPage> {
                 );
               },
             ),
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           controller.addList('Nova Lista');

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'storage_repository.dart';
 
 final themeControllerProvider =
     StateNotifierProvider<ThemeController, ThemeMode>(
@@ -8,19 +8,21 @@ final themeControllerProvider =
 );
 
 class ThemeController extends StateNotifier<ThemeMode> {
+  final StorageRepository _repository = StorageRepository();
+
   ThemeController() : super(ThemeMode.light) {
     _loadTheme();
   }
 
   void _loadTheme() async {
-    final prefs = await SharedPreferences.getInstance();
-    final isDark = prefs.getBool('isDarkMode') ?? false;
-    state = isDark ? ThemeMode.dark : ThemeMode.light;
+    final result = await _repository.loadTheme();
+    if (result.isSuccess) {
+      state = result.data! ? ThemeMode.dark : ThemeMode.light;
+    }
   }
 
   void toggleTheme(bool isDark) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isDarkMode', isDark);
     state = isDark ? ThemeMode.dark : ThemeMode.light;
+    await _repository.saveTheme(isDark);
   }
 }

@@ -3,6 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'calculator_controller.dart';
 import 'calculator_model.dart';
 import '../../shared/widgets/confirmation_dialog.dart';
+import '../../shared/widgets/error_snackbar.dart';
+import '../../shared/widgets/empty_state.dart';
+import '../../shared/widgets/loading_overlay.dart';
+import '../../shared/utils/export_helper.dart';
 
 class CalculatorPage extends ConsumerStatefulWidget {
   const CalculatorPage({super.key});
@@ -19,31 +23,49 @@ class _CalculatorPageState extends ConsumerState<CalculatorPage> {
   final Map<String, TextEditingController> _priceControllers = {};
 
   @override
+  void dispose() {
+    for (var controller in _descControllers.values) {
+      controller.dispose();
+    }
+    for (var controller in _qtyControllers.values) {
+      controller.dispose();
+    }
+    for (var controller in _priceControllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final items = ref.watch(calculatorProvider);
+    final state = ref.watch(calculatorProvider);
     final controller = ref.read(calculatorProvider.notifier);
+    final items = state.items;
+
+    // Show error message if exists
+    if (state.errorMessage != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        showErrorSnackbar(context, state.errorMessage!, controller.clearError);
+        controller.clearError();
+      });
+    }
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Calculadora de Compras'),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: items.isEmpty
-            ? const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+      body: LoadingOverlay(
+        isLoading: state.isLoading,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: items.isEmpty
+              ? const EmptyState(
+                  icon: Icons.receipt_long,
+                  title: 'Nenhum item adicionado!',
+                  subtitle: 'Use o botão abaixo para adicionar um.',
+                )
+              : Column(
                   children: [
-                    Icon(Icons.receipt_long, size: 80, color: Colors.grey),
-                    SizedBox(height: 16),
-                    Text('Nenhum item adicionado!'),
-                    SizedBox(height: 8),
-                    Text('Use o botão abaixo para adicionar um.'),
-                  ],
-                ),
-              )
-            : Column(
-                children: [
                   Row(
                     children: const [
                       Expanded(
@@ -222,8 +244,11 @@ class _CalculatorPageState extends ConsumerState<CalculatorPage> {
                                             const Duration(milliseconds: 300));
 
                                         controller.removeItemById(item.id);
+                                        _descControllers[item.id]?.dispose();
                                         _descControllers.remove(item.id);
+                                        _qtyControllers[item.id]?.dispose();
                                         _qtyControllers.remove(item.id);
+                                        _priceControllers[item.id]?.dispose();
                                         _priceControllers.remove(item.id);
                                       }
                                     },
@@ -253,6 +278,15 @@ class _CalculatorPageState extends ConsumerState<CalculatorPage> {
                             );
                             if (confirm) {
                               controller.clearAll();
+                              for (var c in _descControllers.values) {
+                                c.dispose();
+                              }
+                              for (var c in _qtyControllers.values) {
+                                c.dispose();
+                              }
+                              for (var c in _priceControllers.values) {
+                                c.dispose();
+                              }
                               _descControllers.clear();
                               _qtyControllers.clear();
                               _priceControllers.clear();
@@ -273,15 +307,27 @@ class _CalculatorPageState extends ConsumerState<CalculatorPage> {
                     child: const Text('Limpar Tudo'),
                   ),
                   const SizedBox(height: 16),
-                ],
-              ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: () => ExportHelper.exportCalculator(items, controller.total),
+                        icon: const Icon(Icons.share),
+                        label: const Text('Compartilhar'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ],
+                ),
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           final newItem =
               CalculatorItem(description: '', quantity: 0, price: 0.0);
           controller.addItem(newItem);
-          final length = ref.read(calculatorProvider).length;
+          final length = ref.read(calculatorProvider).items.length;
           _listKey.currentState?.insertItem(length - 1);
         },
         child: const Icon(Icons.add),

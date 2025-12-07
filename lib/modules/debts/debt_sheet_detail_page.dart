@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'debts_controller.dart';
 import 'debts_model.dart';
 import '../../shared/widgets/confirmation_dialog.dart';
+import '../../shared/widgets/error_snackbar.dart';
+import '../../shared/utils/validators.dart';
 
 class DebtSheetDetailPage extends ConsumerStatefulWidget {
   final String sheetId;
@@ -31,8 +32,6 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
   bool _isEditingName = false;
   bool _isAddingNewDebt = false;
 
-  Set<String> _paidDebtIds = {};
-
   @override
   void initState() {
     super.initState();
@@ -45,29 +44,25 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
     _focusBudget30.addListener(() {
       if (!_focusBudget30.hasFocus) _saveBudgetField(day: 30);
     });
-
-    _loadPaidDebts();
   }
 
-  Future<void> _loadPaidDebts() async {
-    final prefs = await SharedPreferences.getInstance();
-    final key = 'paid_debts_${widget.sheetId}';
-    final list = prefs.getStringList(key) ?? [];
-    setState(() {
-      _paidDebtIds = list.toSet();
-    });
-  }
-
-  Future<void> _savePaidDebts() async {
-    final prefs = await SharedPreferences.getInstance();
-    final key = 'paid_debts_${widget.sheetId}';
-    await prefs.setStringList(key, _paidDebtIds.toList());
+  @override
+  void dispose() {
+    _formKey.currentState?.dispose();
+    _newDebtTitle.dispose();
+    _newDebtValue.dispose();
+    _budget15Controller.dispose();
+    _budget30Controller.dispose();
+    _nameController.dispose();
+    _focusBudget15.dispose();
+    _focusBudget30.dispose();
+    super.dispose();
   }
 
   void _saveBudgetField({required int day}) {
     final controller = ref.read(debtsProvider.notifier);
     final sheet =
-        ref.read(debtsProvider).firstWhere((s) => s.id == widget.sheetId);
+        ref.read(debtsProvider).sheets.firstWhere((s) => s.id == widget.sheetId);
     final controllerText =
         day == 15 ? _budget15Controller.text : _budget30Controller.text;
     final parsed = double.tryParse(controllerText.replaceAll(',', '.')) ?? 0.0;
@@ -101,8 +96,18 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final sheets = ref.watch(debtsProvider);
+    final state = ref.watch(debtsProvider);
     final controller = ref.read(debtsProvider.notifier);
+    final sheets = state.sheets;
+    
+    // Show error message if exists
+    if (state.errorMessage != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        showErrorSnackbar(context, state.errorMessage!, controller.clearError);
+        controller.clearError();
+      });
+    }
+    
     final sheet = sheets.firstWhere((s) => s.id == widget.sheetId);
 
     final debts15 = sheet.debts.where((d) => d.day == 15).toList()
@@ -291,8 +296,7 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
                   child: TextFormField(
                     controller: _newDebtTitle,
                     decoration: const InputDecoration(labelText: 'Dívida'),
-                    validator: (v) =>
-                        v == null || v.trim().isEmpty ? 'Obrigatório' : null,
+                    validator: (v) => Validators.required(v, fieldName: 'Dívida'),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -301,10 +305,7 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
                     controller: _newDebtValue,
                     decoration: const InputDecoration(labelText: 'Valor'),
                     keyboardType: TextInputType.number,
-                    validator: (v) =>
-                        double.tryParse(v!.replaceAll(',', '.')) == null
-                            ? 'Inválido'
-                            : null,
+                    validator: (v) => Validators.positiveNumber(v, fieldName: 'Valor'),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -321,8 +322,8 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
                   icon: const Icon(Icons.check_circle, color: Colors.green),
                   tooltip: 'Salvar dívida',
                   onPressed: () {
-                    final sheet = ref
-                        .read(debtsProvider)
+    final sheet = ref
+                        .read(debtsProvider).sheets
                         .firstWhere((s) => s.id == widget.sheetId);
                     final controller = ref.read(debtsProvider.notifier);
                     _addNewDebt(sheet, controller);
@@ -379,7 +380,7 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
 
   Widget _buildDebtTile(
       DebtItem item, DebtSheet sheet, DebtsController controller) {
-    final isPaid = _paidDebtIds.contains(item.id);
+    final isPaid = controller.isDebtPaid(sheet.id, item.id);
     return Card(
       elevation: 1,
       color: isPaid ? Colors.green.shade100 : null,
@@ -389,14 +390,7 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
         leading: Checkbox(
           value: isPaid,
           onChanged: (v) {
-            setState(() {
-              if (v == true) {
-                _paidDebtIds.add(item.id);
-              } else {
-                _paidDebtIds.remove(item.id);
-              }
-              _savePaidDebts();
-            });
+            controller.togglePaidDebt(sheet.id, item.id);
           },
         ),
         title: Text(item.title,
@@ -431,8 +425,6 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
                   final updatedDebts = [...sheet.debts]
                     ..removeWhere((d) => d.id == item.id);
                   controller.editSheet(sheet.copyWith(debts: updatedDebts));
-                  _paidDebtIds.remove(item.id);
-                  _savePaidDebts();
                 }
               },
             ),
