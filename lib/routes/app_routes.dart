@@ -1,16 +1,10 @@
 import 'package:flutter/material.dart';
-import '../modules/home/home_page.dart';
-import '../modules/calculator/calculator_page.dart';
-import '../modules/shopping_list/list_page.dart';
-import '../modules/debts/debts_page.dart';
+import '../shared/widgets/main_navigation.dart';
 import '../modules/debts/debt_sheet_detail_page.dart';
 
 class AppRoutes {
   static Map<String, WidgetBuilder> routes = {
-    '/': (_) => const HomePage(),
-    '/calculator': (_) => const CalculatorPage(),
-    '/shopping-list': (_) => const ShoppingListPage(),
-    '/debts': (_) => const DebtsPage(),
+    '/': (_) => const MainNavigation(),
   };
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
@@ -22,6 +16,6 @@ class AppRoutes {
     }
 
     // fallback
-    return MaterialPageRoute(builder: (_) => const HomePage());
+    return MaterialPageRoute(builder: (_) => const MainNavigation());
   }
 }

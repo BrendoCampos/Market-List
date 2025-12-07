@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../../core/theme_controller.dart';
+import '../../core/app_colors.dart';
 
 class DrawerMenu extends ConsumerWidget {
   const DrawerMenu({super.key});
@@ -14,42 +16,83 @@ class DrawerMenu extends ConsumerWidget {
     return Drawer(
       child: Column(
         children: [
-          UserAccountsDrawerHeader(
-            decoration: const BoxDecoration(color: Colors.orange),
-            accountName: const Text('Totalize', style: TextStyle(fontSize: 20)),
-            accountEmail: const Text('Organize suas compras 🛒'),
-            currentAccountPicture: const CircleAvatar(
-              backgroundColor: Colors.white,
-              child: Icon(Icons.shopping_cart, color: Colors.orange, size: 32),
+          Container(
+            height: 200,
+            decoration: const BoxDecoration(
+              gradient: AppColors.primaryGradient,
+            ),
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.shopping_cart, color: Colors.white, size: 32),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Totalize',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Organize suas compras 🛒',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9),
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ).animate().fadeIn(duration: 600.ms),
+          const SizedBox(height: 8),
+          const Divider(),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text(
+              'Configurações',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
             ),
           ),
-          ListTile(
-            leading: const Icon(Icons.calculate),
-            title: const Text('Calculadora'),
-            onTap: () => Navigator.pushNamed(context, '/calculator'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.list),
-            title: const Text('Lista de Compras'),
-            onTap: () => Navigator.pushNamed(context, '/shopping-list'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.attach_money),
-            title: const Text('Dívidas Mensais'),
-            onTap: () => Navigator.pushNamed(context, '/debts'),
+          SwitchListTile(
+            secondary: Icon(isDark ? Icons.dark_mode : Icons.light_mode),
+            title: const Text('Modo Escuro'),
+            value: isDark,
+            onChanged: (value) => controller.toggleTheme(value),
           ),
           const Divider(),
-          ListTile(
-            leading: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
-            title: Text(isDark ? 'Modo claro' : 'Modo escuro'),
-            onTap: () => controller.toggleTheme(!isDark),
-          ),
           const Spacer(),
-          const Padding(
-            padding: EdgeInsets.only(left: 16, bottom: 12),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text('v1.0.0', style: TextStyle(color: Colors.grey)),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Versão 1.0.0',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textTertiary,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Desenvolvido por Brendo Campos',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textTertiary,
+                      ),
+                ),
+              ],
             ),
           ),
         ],

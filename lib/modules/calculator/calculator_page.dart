@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'calculator_controller.dart';
 import 'calculator_model.dart';
 import '../../shared/widgets/confirmation_dialog.dart';
+import '../../shared/widgets/error_snackbar.dart';
+import '../../shared/widgets/empty_state.dart';
+import '../../shared/widgets/loading_overlay.dart';
+import '../../shared/utils/export_helper.dart';
+import '../../core/app_colors.dart';
 
 class CalculatorPage extends ConsumerStatefulWidget {
   const CalculatorPage({super.key});
@@ -12,296 +18,311 @@ class CalculatorPage extends ConsumerStatefulWidget {
 }
 
 class _CalculatorPageState extends ConsumerState<CalculatorPage> {
-  final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
-
   final Map<String, TextEditingController> _descControllers = {};
   final Map<String, TextEditingController> _qtyControllers = {};
   final Map<String, TextEditingController> _priceControllers = {};
 
   @override
+  void dispose() {
+    for (var controller in _descControllers.values) {
+      controller.dispose();
+    }
+    for (var controller in _qtyControllers.values) {
+      controller.dispose();
+    }
+    for (var controller in _priceControllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final items = ref.watch(calculatorProvider);
+    final state = ref.watch(calculatorProvider);
     final controller = ref.read(calculatorProvider.notifier);
+    final items = state.items;
+
+    if (state.errorMessage != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        showErrorSnackbar(context, state.errorMessage!, controller.clearError);
+        controller.clearError();
+      });
+    }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Calculadora de Compras'),
+        title: const Text('Calculadora'),
+        actions: [
+          if (items.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.delete_sweep_outlined),
+              onPressed: () async {
+                final confirm = await showConfirmationDialog(
+                  context,
+                  'Deseja limpar todos os itens?',
+                );
+                if (confirm) {
+                  controller.clearAll();
+                  for (var c in _descControllers.values) {
+                    c.dispose();
+                  }
+                  for (var c in _qtyControllers.values) {
+                    c.dispose();
+                  }
+                  for (var c in _priceControllers.values) {
+                    c.dispose();
+                  }
+                  _descControllers.clear();
+                  _qtyControllers.clear();
+                  _priceControllers.clear();
+                }
+              },
+            ),
+        ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: items.isEmpty
-            ? const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.receipt_long, size: 80, color: Colors.grey),
-                    SizedBox(height: 16),
-                    Text('Nenhum item adicionado!'),
-                    SizedBox(height: 8),
-                    Text('Use o botão abaixo para adicionar um.'),
-                  ],
-                ),
-              )
-            : Column(
-                children: [
-                  Row(
-                    children: const [
-                      Expanded(
-                        flex: 3,
-                        child: Text('Descrição',
-                            style: TextStyle(fontWeight: FontWeight.bold)),
-                      ),
-                      SizedBox(width: 8),
-                      SizedBox(
-                        width: 60,
-                        child: Text('Qtd',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                            textAlign: TextAlign.center),
-                      ),
-                      SizedBox(width: 8),
-                      SizedBox(
-                        width: 80,
-                        child: Text('Preço',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                            textAlign: TextAlign.center),
-                      ),
-                      SizedBox(width: 40),
-                    ],
+      body: LoadingOverlay(
+        isLoading: state.isLoading,
+        child: Column(
+          children: [
+            // Total Card
+            Container(
+              margin: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: AppColors.primaryGradient,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
                   ),
-                  const Divider(thickness: 1.2),
-                  Expanded(
-                    child: AnimatedList(
-                      key: _listKey,
-                      initialItemCount: items.length,
-                      itemBuilder: (_, index, animation) {
-                        final item = items[index];
-                        _descControllers[item.id] ??=
-                            TextEditingController(text: item.description);
-                        _qtyControllers[item.id] ??= TextEditingController(
-                            text: item.quantity.toString());
-                        _priceControllers[item.id] ??= TextEditingController(
-                            text: item.price.toStringAsFixed(2));
+                ],
+              ),
+              child: Column(
+                children: [
+                  const Text(
+                    'Total',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'R\$ ${controller.total.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 40,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  if (items.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    OutlinedButton.icon(
+                      onPressed: () => ExportHelper.exportCalculator(items, controller.total),
+                      icon: const Icon(Icons.share, color: Colors.white),
+                      label: const Text(
+                        'Compartilhar',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ).animate().fadeIn(duration: 600.ms).slideY(begin: -0.2, end: 0),
 
-                        return SizeTransition(
-                          sizeFactor: animation,
-                          child: Card(
-                            margin: const EdgeInsets.symmetric(vertical: 8),
-                            elevation: 2,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                            child: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Row(
+            // Items List
+            Expanded(
+              child: items.isEmpty
+                  ? const EmptyState(
+                      icon: Icons.calculate_outlined,
+                      title: 'Nenhum item adicionado!',
+                      subtitle: 'Toque no botão "+" para começar.',
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      itemCount: items.length,
+                      itemBuilder: (_, index) {
+                        final item = items[index];
+                        _descControllers[item.id] ??= TextEditingController(text: item.description);
+                        _qtyControllers[item.id] ??= TextEditingController(text: item.quantity.toString());
+                        _priceControllers[item.id] ??= TextEditingController(text: item.price.toStringAsFixed(2));
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: AppColors.primary.withOpacity(0.1),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
                                 children: [
                                   Expanded(
-                                    flex: 3,
                                     child: TextField(
                                       controller: _descControllers[item.id],
                                       decoration: const InputDecoration(
                                         hintText: 'Produto',
                                         border: InputBorder.none,
                                         isDense: true,
+                                        contentPadding: EdgeInsets.zero,
                                       ),
-                                      onChanged: (value) {
-                                        controller.editItem(
-                                          item.id,
-                                          CalculatorItem(
-                                            id: item.id,
-                                            description: value,
-                                            quantity: int.tryParse(
-                                                    _qtyControllers[item.id]
-                                                            ?.text ??
-                                                        '0') ??
-                                                0,
-                                            price: double.tryParse(
-                                                    _priceControllers[item.id]
-                                                            ?.text
-                                                            .replaceAll(
-                                                                ',', '.') ??
-                                                        '0') ??
-                                                0,
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  SizedBox(
-                                    width: 60,
-                                    child: TextField(
-                                      controller: _qtyControllers[item.id],
-                                      keyboardType: TextInputType.number,
-                                      textAlign: TextAlign.center,
-                                      decoration: const InputDecoration(
-                                        hintText: 'Qtd',
-                                        border: InputBorder.none,
-                                        isDense: true,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
                                       ),
-                                      onChanged: (value) {
-                                        controller.editItem(
-                                          item.id,
-                                          CalculatorItem(
-                                            id: item.id,
-                                            description:
-                                                _descControllers[item.id]
-                                                        ?.text ??
-                                                    '',
-                                            quantity: int.tryParse(value) ?? 0,
-                                            price: double.tryParse(
-                                                    _priceControllers[item.id]
-                                                            ?.text
-                                                            .replaceAll(
-                                                                ',', '.') ??
-                                                        '0') ??
-                                                0,
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  SizedBox(
-                                    width: 80,
-                                    child: TextField(
-                                      controller: _priceControllers[item.id],
-                                      keyboardType:
-                                          const TextInputType.numberWithOptions(
-                                              decimal: true),
-                                      textAlign: TextAlign.center,
-                                      decoration: const InputDecoration(
-                                        hintText: 'Preço',
-                                        border: InputBorder.none,
-                                        isDense: true,
-                                      ),
-                                      onChanged: (value) {
-                                        final formatted =
-                                            value.replaceAll(',', '.');
-                                        controller.editItem(
-                                          item.id,
-                                          CalculatorItem(
-                                            id: item.id,
-                                            description:
-                                                _descControllers[item.id]
-                                                        ?.text ??
-                                                    '',
-                                            quantity: int.tryParse(
-                                                    _qtyControllers[item.id]
-                                                            ?.text ??
-                                                        '0') ??
-                                                0,
-                                            price:
-                                                double.tryParse(formatted) ?? 0,
-                                          ),
-                                        );
-                                      },
+                                      onChanged: (value) => _updateItem(item, controller),
                                     ),
                                   ),
                                   IconButton(
-                                    icon: const Icon(Icons.delete,
-                                        color: Colors.red),
+                                    icon: const Icon(Icons.delete_outline),
+                                    color: AppColors.error,
                                     onPressed: () async {
-                                      final confirm =
-                                          await showConfirmationDialog(
+                                      final confirm = await showConfirmationDialog(
                                         context,
                                         'Deseja remover este item?',
                                       );
                                       if (confirm) {
-                                        final indexToRemove = items
-                                            .indexWhere((e) => e.id == item.id);
-
-                                        _listKey.currentState?.removeItem(
-                                          indexToRemove,
-                                          (context, animation) =>
-                                              _buildRemovedItemCard(
-                                                  item, animation),
-                                          duration:
-                                              const Duration(milliseconds: 300),
-                                        );
-
-                                        await Future.delayed(
-                                            const Duration(milliseconds: 300));
-
                                         controller.removeItemById(item.id);
+                                        _descControllers[item.id]?.dispose();
                                         _descControllers.remove(item.id);
+                                        _qtyControllers[item.id]?.dispose();
                                         _qtyControllers.remove(item.id);
+                                        _priceControllers[item.id]?.dispose();
                                         _priceControllers.remove(item.id);
                                       }
                                     },
                                   ),
                                 ],
                               ),
-                            ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.surfaceVariant,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(Icons.shopping_basket_outlined, size: 16),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: TextField(
+                                              controller: _qtyControllers[item.id],
+                                              keyboardType: TextInputType.number,
+                                              decoration: const InputDecoration(
+                                                hintText: 'Qtd',
+                                                border: InputBorder.none,
+                                                isDense: true,
+                                                contentPadding: EdgeInsets.zero,
+                                              ),
+                                              onChanged: (value) => _updateItem(item, controller),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Text('×', style: TextStyle(fontSize: 20)),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    flex: 2,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.surfaceVariant,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Text('R\$', style: TextStyle(fontWeight: FontWeight.w600)),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: TextField(
+                                              controller: _priceControllers[item.id],
+                                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                              decoration: const InputDecoration(
+                                                hintText: '0.00',
+                                                border: InputBorder.none,
+                                                isDense: true,
+                                                contentPadding: EdgeInsets.zero,
+                                              ),
+                                              onChanged: (value) => _updateItem(item, controller),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text(
+                                      'Subtotal:',
+                                      style: TextStyle(fontWeight: FontWeight.w500),
+                                    ),
+                                    Text(
+                                      'R\$ ${item.total.toStringAsFixed(2)}',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.primary,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
-                        );
+                        ).animate().fadeIn(duration: 300.ms).slideX(begin: -0.1, end: 0);
                       },
                     ),
-                  ),
-                  const Divider(thickness: 1.2),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Total: R\$ ${controller.total.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                        fontSize: 22, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: items.isNotEmpty
-                        ? () async {
-                            final confirm = await showConfirmationDialog(
-                              context,
-                              'Deseja limpar todos os itens?',
-                            );
-                            if (confirm) {
-                              controller.clearAll();
-                              _descControllers.clear();
-                              _qtyControllers.clear();
-                              _priceControllers.clear();
-                              _listKey.currentState?.setState(() {});
-                            }
-                          }
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: Colors.red.withOpacity(0.3),
-                      disabledForegroundColor: Colors.white.withOpacity(0.5),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(24)),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 24, vertical: 14),
-                    ),
-                    child: const Text('Limpar Tudo'),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-              ),
+            ),
+          ],
+        ),
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
-          final newItem =
-              CalculatorItem(description: '', quantity: 0, price: 0.0);
+          final newItem = CalculatorItem(description: '', quantity: 1, price: 0.0);
           controller.addItem(newItem);
-          final length = ref.read(calculatorProvider).length;
-          _listKey.currentState?.insertItem(length - 1);
         },
-        child: const Icon(Icons.add),
-      ),
+        icon: const Icon(Icons.add),
+        label: const Text('Adicionar'),
+      ).animate().fadeIn(delay: 300.ms).scale(begin: const Offset(0.8, 0.8)),
     );
   }
 
-  Widget _buildRemovedItemCard(
-      CalculatorItem item, Animation<double> animation) {
-    return SizeTransition(
-      sizeFactor: animation,
-      child: Card(
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: ListTile(
-          title: Text(item.description),
-          subtitle:
-              Text('${item.quantity} x R\$ ${item.price.toStringAsFixed(2)}'),
-        ),
+  void _updateItem(CalculatorItem item, CalculatorController controller) {
+    controller.editItem(
+      item.id,
+      CalculatorItem(
+        id: item.id,
+        description: _descControllers[item.id]?.text ?? '',
+        quantity: int.tryParse(_qtyControllers[item.id]?.text ?? '0') ?? 0,
+        price: double.tryParse(_priceControllers[item.id]?.text.replaceAll(',', '.') ?? '0') ?? 0,
       ),
     );
   }

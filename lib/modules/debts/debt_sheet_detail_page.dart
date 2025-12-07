@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 import 'debts_controller.dart';
 import 'debts_model.dart';
 import '../../shared/widgets/confirmation_dialog.dart';
+import '../../shared/widgets/error_snackbar.dart';
+import '../../shared/widgets/budget_pie_chart.dart';
+import '../../shared/utils/validators.dart';
+import '../../core/app_colors.dart';
 
 class DebtSheetDetailPage extends ConsumerStatefulWidget {
   final String sheetId;
@@ -28,10 +32,7 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
   final FocusNode _focusBudget15 = FocusNode();
   final FocusNode _focusBudget30 = FocusNode();
 
-  bool _isEditingName = false;
-  bool _isAddingNewDebt = false;
-
-  Set<String> _paidDebtIds = {};
+  bool _isChartsExpanded = true;
 
   @override
   void initState() {
@@ -45,29 +46,25 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
     _focusBudget30.addListener(() {
       if (!_focusBudget30.hasFocus) _saveBudgetField(day: 30);
     });
-
-    _loadPaidDebts();
   }
 
-  Future<void> _loadPaidDebts() async {
-    final prefs = await SharedPreferences.getInstance();
-    final key = 'paid_debts_${widget.sheetId}';
-    final list = prefs.getStringList(key) ?? [];
-    setState(() {
-      _paidDebtIds = list.toSet();
-    });
-  }
-
-  Future<void> _savePaidDebts() async {
-    final prefs = await SharedPreferences.getInstance();
-    final key = 'paid_debts_${widget.sheetId}';
-    await prefs.setStringList(key, _paidDebtIds.toList());
+  @override
+  void dispose() {
+    _formKey.currentState?.dispose();
+    _newDebtTitle.dispose();
+    _newDebtValue.dispose();
+    _budget15Controller.dispose();
+    _budget30Controller.dispose();
+    _nameController.dispose();
+    _focusBudget15.dispose();
+    _focusBudget30.dispose();
+    super.dispose();
   }
 
   void _saveBudgetField({required int day}) {
     final controller = ref.read(debtsProvider.notifier);
     final sheet =
-        ref.read(debtsProvider).firstWhere((s) => s.id == widget.sheetId);
+        ref.read(debtsProvider).sheets.firstWhere((s) => s.id == widget.sheetId);
     final controllerText =
         day == 15 ? _budget15Controller.text : _budget30Controller.text;
     final parsed = double.tryParse(controllerText.replaceAll(',', '.')) ?? 0.0;
@@ -79,30 +76,37 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
   }
 
   void _addNewDebt(DebtSheet sheet, DebtsController controller) {
-    if (_formKey.currentState!.validate() && _selectedDay != null) {
-      final updated = sheet.copyWith(
-        debts: [
-          ...sheet.debts,
-          DebtItem(
-            title: _newDebtTitle.text.trim(),
-            value: double.parse(_newDebtValue.text.replaceAll(',', '.')),
-            day: _selectedDay!,
-          ),
-        ],
-      );
-      controller.editSheet(updated);
+    final updated = sheet.copyWith(
+      debts: [
+        ...sheet.debts,
+        DebtItem(
+          title: _newDebtTitle.text.trim(),
+          value: double.parse(_newDebtValue.text.replaceAll(',', '.')),
+          day: _selectedDay!,
+        ),
+      ],
+    );
+    controller.editSheet(updated);
 
-      _newDebtTitle.clear();
-      _newDebtValue.clear();
-      _selectedDay = null;
-      setState(() => _isAddingNewDebt = false);
-    }
+    _newDebtTitle.clear();
+    _newDebtValue.clear();
+    _selectedDay = null;
   }
 
   @override
   Widget build(BuildContext context) {
-    final sheets = ref.watch(debtsProvider);
+    final state = ref.watch(debtsProvider);
     final controller = ref.read(debtsProvider.notifier);
+    final sheets = state.sheets;
+    
+    // Show error message if exists
+    if (state.errorMessage != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        showErrorSnackbar(context, state.errorMessage!, controller.clearError);
+        controller.clearError();
+      });
+    }
+    
     final sheet = sheets.firstWhere((s) => s.id == widget.sheetId);
 
     final debts15 = sheet.debts.where((d) => d.day == 15).toList()
@@ -113,7 +117,6 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
     final total30 = debts30.fold(0.0, (sum, d) => sum + d.value);
     final totalDebt = total15 + total30;
     final totalBudget = sheet.budget15 + sheet.budget30;
-    final totalRemaining = totalBudget - totalDebt;
 
     _nameController.text = sheet.name;
     _budget15Controller.text = sheet.budget15.toStringAsFixed(2);
@@ -121,27 +124,21 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: _isEditingName
-            ? TextField(
-                controller: _nameController,
-                autofocus: true,
-                onEditingComplete: () {
-                  final newName = _nameController.text.trim();
-                  if (newName.isNotEmpty && newName != sheet.name) {
-                    controller.editSheet(sheet.copyWith(name: newName));
-                  }
-                  setState(() => _isEditingName = false);
-                },
-                decoration: const InputDecoration(border: InputBorder.none),
-                style:
-                    const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              )
-            : GestureDetector(
-                onTap: () => setState(() => _isEditingName = true),
-                child: Text(sheet.name,
-                    style: const TextStyle(
-                        fontSize: 20, fontWeight: FontWeight.bold)),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                sheet.name,
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.edit_outlined, size: 20),
+              tooltip: 'Editar nome',
+              onPressed: () => _showEditNameDialog(sheet, controller),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.delete, color: Colors.red),
@@ -161,36 +158,101 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            ExpansionTile(
-              initiallyExpanded: false,
-              title: const Text('Resumo Financeiro'),
-              tilePadding: EdgeInsets.zero,
-              childrenPadding: const EdgeInsets.only(bottom: 12),
-              children: [
-                _buildTopCard(totalDebt, totalRemaining),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildTopCardCustom(
-                        title: 'Dívidas dia 15',
-                        total: total15,
-                        saldo: sheet.budget15 - total15,
+            // Resumo Financeiro Collapsible
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+              ),
+              child: Column(
+                children: [
+                  InkWell(
+                    onTap: () => setState(() => _isChartsExpanded = !_isChartsExpanded),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.pie_chart,
+                              color: AppColors.primary,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Resumo Financeiro',
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          Icon(
+                            _isChartsExpanded ? Icons.expand_less : Icons.expand_more,
+                            color: AppColors.primary,
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildTopCardCustom(
-                        title: 'Dívidas dia 30',
-                        total: total30,
-                        saldo: sheet.budget30 - total30,
+                  ),
+                  AnimatedCrossFade(
+                    duration: const Duration(milliseconds: 300),
+                    crossFadeState: _isChartsExpanded
+                        ? CrossFadeState.showFirst
+                        : CrossFadeState.showSecond,
+                    firstChild: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 280,
+                              child: BudgetPieChart(
+                                title: 'Total Geral',
+                                budget: totalBudget,
+                                debt: totalDebt,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            SizedBox(
+                              width: 280,
+                              child: BudgetPieChart(
+                                title: 'Dia 15',
+                                budget: sheet.budget15,
+                                debt: total15,
+                                color: AppColors.secondary,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            SizedBox(
+                              width: 280,
+                              child: BudgetPieChart(
+                                title: 'Dia 30',
+                                budget: sheet.budget30,
+                                debt: total30,
+                                color: AppColors.accent,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
+                    secondChild: const SizedBox.shrink(),
+                  ),
+                ],
+              ),
+            ).animate().fadeIn(duration: 400.ms),
             _buildBudgetFields(),
             const SizedBox(height: 16),
             _buildAddDebtToggle(),
@@ -203,136 +265,189 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
     );
   }
 
-  Widget _buildTopCard(double total, double saldo) {
-    return _buildTopCardCustom(
-        title: 'Total de Dívidas', total: total, saldo: saldo);
+  Widget _buildBudgetFields() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [AppColors.primary.withValues(alpha: 0.05), AppColors.secondary.withValues(alpha: 0.05)],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.account_balance_wallet, size: 20, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Orçamentos',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: _budget15Controller,
+                  focusNode: _focusBudget15,
+                  decoration: const InputDecoration(
+                    labelText: 'Dia 15',
+                    prefixIcon: Icon(Icons.calendar_today, size: 20),
+                    prefixText: 'R\$ ',
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextFormField(
+                  controller: _budget30Controller,
+                  focusNode: _focusBudget30,
+                  decoration: const InputDecoration(
+                    labelText: 'Dia 30',
+                    prefixIcon: Icon(Icons.calendar_today, size: 20),
+                    prefixText: 'R\$ ',
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
-  Widget _buildTopCardCustom(
-      {required String title, required double total, required double saldo}) {
-    return Card(
-      color: Colors.purple.shade50,
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Text(title, style: const TextStyle(fontSize: 16)),
-            Text(
-              'R\$ ${total.toStringAsFixed(2)}',
-              style: const TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.bold,
-                color: Colors.red,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Saldo: R\$ ${saldo.toStringAsFixed(2)}',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: saldo >= 0 ? Colors.green : Colors.red,
-              ),
-            ),
-          ],
+  Widget _buildAddDebtToggle() {
+    return Center(
+      child: FilledButton.icon(
+        onPressed: () => _showAddDebtDialog(),
+        icon: const Icon(Icons.add),
+        label: const Text('Adicionar Dívida'),
+        style: FilledButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         ),
       ),
     );
   }
 
-  Widget _buildBudgetFields() {
-    return Row(
-      children: [
-        Expanded(
-          child: TextFormField(
-            controller: _budget15Controller,
-            focusNode: _focusBudget15,
-            decoration: const InputDecoration(labelText: 'Orçamento dia 15'),
-            keyboardType: TextInputType.number,
-          ),
+  void _showEditNameDialog(DebtSheet sheet, DebtsController controller) {
+    _nameController.text = sheet.name;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.edit, color: AppColors.primary),
+            SizedBox(width: 12),
+            Text('Editar Nome da Folha'),
+          ],
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: TextFormField(
-            controller: _budget30Controller,
-            focusNode: _focusBudget30,
-            decoration: const InputDecoration(labelText: 'Orçamento dia 30'),
-            keyboardType: TextInputType.number,
+        content: TextFormField(
+          controller: _nameController,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Nome',
+            prefixIcon: Icon(Icons.description_outlined),
           ),
+          validator: (v) => Validators.required(v, fieldName: 'Nome'),
         ),
-      ],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final newName = _nameController.text.trim();
+              if (newName.isNotEmpty && newName != sheet.name) {
+                controller.editSheet(sheet.copyWith(name: newName));
+              }
+              Navigator.pop(context);
+            },
+            child: const Text('Salvar'),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildAddDebtToggle() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        AnimatedCrossFade(
-          duration: const Duration(milliseconds: 300),
-          crossFadeState: _isAddingNewDebt
-              ? CrossFadeState.showSecond
-              : CrossFadeState.showFirst,
-          firstChild: Center(
-            child: OutlinedButton.icon(
-              onPressed: () => setState(() => _isAddingNewDebt = true),
-              icon: const Icon(Icons.add),
-              label: const Text('Adicionar nova dívida'),
-            ),
-          ),
-          secondChild: Form(
-            key: _formKey,
-            child: Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: TextFormField(
-                    controller: _newDebtTitle,
-                    decoration: const InputDecoration(labelText: 'Dívida'),
-                    validator: (v) =>
-                        v == null || v.trim().isEmpty ? 'Obrigatório' : null,
-                  ),
+  void _showAddDebtDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Nova Dívida'),
+        content: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: _newDebtTitle,
+                decoration: const InputDecoration(
+                  labelText: 'Título',
+                  prefixIcon: Icon(Icons.description_outlined),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextFormField(
-                    controller: _newDebtValue,
-                    decoration: const InputDecoration(labelText: 'Valor'),
-                    keyboardType: TextInputType.number,
-                    validator: (v) =>
-                        double.tryParse(v!.replaceAll(',', '.')) == null
-                            ? 'Inválido'
-                            : null,
-                  ),
+                validator: (v) => Validators.required(v, fieldName: 'Título'),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _newDebtValue,
+                decoration: const InputDecoration(
+                  labelText: 'Valor',
+                  prefixIcon: Icon(Icons.attach_money),
                 ),
-                const SizedBox(width: 8),
-                DropdownButton<int>(
-                  value: _selectedDay,
-                  hint: const Text("Dia"),
-                  items: const [
-                    DropdownMenuItem(value: 15, child: Text("15")),
-                    DropdownMenuItem(value: 30, child: Text("30")),
-                  ],
-                  onChanged: (val) => setState(() => _selectedDay = val),
+                keyboardType: TextInputType.number,
+                validator: (v) => Validators.positiveNumber(v, fieldName: 'Valor'),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<int>(
+                value: _selectedDay,
+                decoration: const InputDecoration(
+                  labelText: 'Dia de Vencimento',
+                  prefixIcon: Icon(Icons.calendar_today),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.check_circle, color: Colors.green),
-                  tooltip: 'Salvar dívida',
-                  onPressed: () {
-                    final sheet = ref
-                        .read(debtsProvider)
-                        .firstWhere((s) => s.id == widget.sheetId);
-                    final controller = ref.read(debtsProvider.notifier);
-                    _addNewDebt(sheet, controller);
-                  },
-                ),
-              ],
-            ),
+                items: const [
+                  DropdownMenuItem(value: 15, child: Text('Dia 15')),
+                  DropdownMenuItem(value: 30, child: Text('Dia 30')),
+                ],
+                onChanged: (val) => setState(() => _selectedDay = val),
+                validator: (v) => v == null ? 'Selecione o dia' : null,
+              ),
+            ],
           ),
         ),
-      ],
+        actions: [
+          TextButton(
+            onPressed: () {
+              _newDebtTitle.clear();
+              _newDebtValue.clear();
+              _selectedDay = null;
+              Navigator.pop(context);
+            },
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (_formKey.currentState!.validate()) {
+                final sheet = ref.read(debtsProvider).sheets.firstWhere((s) => s.id == widget.sheetId);
+                final controller = ref.read(debtsProvider.notifier);
+                _addNewDebt(sheet, controller);
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('Adicionar'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -344,24 +459,57 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
     double total15,
     double total30,
   ) {
-    Widget buildSection(String title, List<DebtItem> debts, double total) {
+    Widget buildSection(String title, List<DebtItem> debts, double total, Color color) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (debts.isNotEmpty) ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text(title,
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              margin: const EdgeInsets.only(bottom: 12, top: 8),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [color.withValues(alpha: 0.1), color.withValues(alpha: 0.05)],
+                ),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: color.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.calendar_month, color: color, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: color,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      'R\$ ${total.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            ...debts
-                .map((item) => _buildDebtTile(item, sheet, controller))
-                .toList(),
-            Padding(
-              padding: const EdgeInsets.only(top: 4, bottom: 12),
-              child: Text('Total: R\$ ${total.toStringAsFixed(2)}',
-                  style: const TextStyle(fontWeight: FontWeight.w500)),
-            ),
+            ...debts.map((item) => _buildDebtTile(item, sheet, controller)).toList(),
           ]
         ],
       );
@@ -370,8 +518,8 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
     return Expanded(
       child: ListView(
         children: [
-          buildSection('📅 Dívidas do dia 15', debts15, total15),
-          buildSection('📅 Dívidas do dia 30', debts30, total30),
+          buildSection('Dia 15', debts15, total15, AppColors.secondary),
+          buildSection('Dia 30', debts30, total30, AppColors.accent),
         ],
       ),
     );
@@ -379,66 +527,153 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
 
   Widget _buildDebtTile(
       DebtItem item, DebtSheet sheet, DebtsController controller) {
-    final isPaid = _paidDebtIds.contains(item.id);
-    return Card(
-      elevation: 1,
-      color: isPaid ? Colors.green.shade100 : null,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        leading: Checkbox(
-          value: isPaid,
-          onChanged: (v) {
-            setState(() {
-              if (v == true) {
-                _paidDebtIds.add(item.id);
-              } else {
-                _paidDebtIds.remove(item.id);
-              }
-              _savePaidDebts();
-            });
-          },
-        ),
-        title: Text(item.title,
-            style: const TextStyle(fontWeight: FontWeight.w500)),
-        subtitle:
-            Text('R\$ ${item.value.toStringAsFixed(2)} | dia ${item.day}'),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.edit, color: Colors.deepPurple),
-              tooltip: 'Editar',
-              onPressed: () {
-                _newDebtTitle.text = item.title;
-                _newDebtValue.text = item.value.toStringAsFixed(2);
-                setState(() {
-                  _selectedDay = item.day;
-                  _isAddingNewDebt = true;
-                });
-                final updatedDebts = [...sheet.debts]
-                  ..removeWhere((d) => d.id == item.id);
-                controller.editSheet(sheet.copyWith(debts: updatedDebts));
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete, color: Colors.red),
-              tooltip: 'Excluir',
-              onPressed: () async {
-                final confirm = await showConfirmationDialog(
-                    context, 'Deseja excluir esta dívida?');
-                if (confirm) {
-                  final updatedDebts = [...sheet.debts]
-                    ..removeWhere((d) => d.id == item.id);
-                  controller.editSheet(sheet.copyWith(debts: updatedDebts));
-                  _paidDebtIds.remove(item.id);
-                  _savePaidDebts();
-                }
-              },
-            ),
-          ],
+    final isPaid = controller.isDebtPaid(sheet.id, item.id);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        gradient: isPaid
+            ? const LinearGradient(colors: [Color(0xFFD1FAE5), Color(0xFFA7F3D0)])
+            : LinearGradient(
+                colors: [
+                  Colors.white,
+                  AppColors.primary.withValues(alpha: 0.02),
+                ],
+              ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isPaid
+              ? AppColors.success.withValues(alpha: 0.3)
+              : AppColors.border,
+          width: 1.5,
         ),
       ),
-    );
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => controller.togglePaidDebt(sheet.id, item.id),
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isPaid ? AppColors.success : AppColors.primary,
+                      width: 2,
+                    ),
+                    color: isPaid ? AppColors.success : Colors.transparent,
+                  ),
+                  child: isPaid
+                      ? const Icon(Icons.check, size: 16, color: Colors.white)
+                      : null,
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.title,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 16,
+                          decoration: isPaid ? TextDecoration.lineThrough : null,
+                          color: isPaid ? AppColors.textSecondary : AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              'R\$ ${item.value.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primary,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.secondary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.calendar_today, size: 12, color: AppColors.secondary),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Dia ${item.day}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.secondary,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                PopupMenuButton(
+                  icon: const Icon(Icons.more_vert),
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      child: const Row(
+                        children: [
+                          Icon(Icons.edit_outlined, size: 20),
+                          SizedBox(width: 12),
+                          Text('Editar'),
+                        ],
+                      ),
+                      onTap: () {
+                        _newDebtTitle.text = item.title;
+                        _newDebtValue.text = item.value.toStringAsFixed(2);
+                        _selectedDay = item.day;
+                        final updatedDebts = [...sheet.debts]..removeWhere((d) => d.id == item.id);
+                        controller.editSheet(sheet.copyWith(debts: updatedDebts));
+                        Future.delayed(const Duration(milliseconds: 100), _showAddDebtDialog);
+                      },
+                    ),
+                    PopupMenuItem(
+                      child: const Row(
+                        children: [
+                          Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                          SizedBox(width: 12),
+                          Text('Excluir', style: TextStyle(color: Colors.red)),
+                        ],
+                      ),
+                      onTap: () async {
+                        final confirm = await showConfirmationDialog(
+                            context, 'Deseja excluir esta dívida?');
+                        if (confirm) {
+                          final updatedDebts = [...sheet.debts]..removeWhere((d) => d.id == item.id);
+                          controller.editSheet(sheet.copyWith(debts: updatedDebts));
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.1, end: 0);
   }
 }

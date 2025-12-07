@@ -1,82 +1,158 @@
-import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'list_model.dart';
+import '../../core/storage_repository.dart';
 
 final shoppingListProvider =
-    StateNotifierProvider<ShoppingListController, List<ShoppingList>>(
+    StateNotifierProvider<ShoppingListController, ShoppingListState>(
   (ref) => ShoppingListController(),
 );
 
-class ShoppingListController extends StateNotifier<List<ShoppingList>> {
-  ShoppingListController() : super([]) {
+class ShoppingListState {
+  final List<ShoppingList> lists;
+  final String? errorMessage;
+  final bool isLoading;
+
+  ShoppingListState({
+    required this.lists,
+    this.errorMessage,
+    this.isLoading = false,
+  });
+
+  ShoppingListState copyWith({
+    List<ShoppingList>? lists,
+    String? errorMessage,
+    bool? isLoading,
+  }) {
+    return ShoppingListState(
+      lists: lists ?? this.lists,
+      errorMessage: errorMessage,
+      isLoading: isLoading ?? this.isLoading,
+    );
+  }
+}
+
+class ShoppingListController extends StateNotifier<ShoppingListState> {
+  final StorageRepository _repository = StorageRepository();
+
+  ShoppingListController() : super(ShoppingListState(lists: [])) {
     _load();
   }
 
   Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString('shopping_lists');
-    if (raw != null) {
-      final decoded = json.decode(raw) as List;
-      state = decoded.map((e) => ShoppingList.fromJson(e)).toList();
+    state = state.copyWith(isLoading: true);
+    final result = await _repository.loadShoppingLists();
+    
+    if (result.isSuccess) {
+      final lists = result.data!.map((e) => ShoppingList.fromJson(e)).toList();
+      state = ShoppingListState(lists: lists, isLoading: false);
+    } else {
+      state = ShoppingListState(lists: [], errorMessage: result.error, isLoading: false);
     }
   }
 
   Future<void> _save() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-        'shopping_lists', json.encode(state.map((e) => e.toJson()).toList()));
+    state = state.copyWith(isLoading: true);
+    final result = await _repository.saveShoppingLists(
+      state.lists.map((e) => e.toJson()).toList(),
+    );
+    
+    if (result.isSuccess) {
+      state = state.copyWith(isLoading: false);
+    } else {
+      state = state.copyWith(errorMessage: result.error, isLoading: false);
+    }
   }
 
   void addList(String title) {
     if (title.trim().isEmpty) return;
-    state = [...state, ShoppingList(title: title, items: [])];
+    final newLists = [...state.lists, ShoppingList(title: title, items: [])];
+    state = state.copyWith(lists: newLists);
     _save();
   }
 
-  void removeList(int index) {
-    final newList = [...state]..removeAt(index);
-    state = newList;
+  void removeList(String listId) {
+    final newLists = state.lists.where((list) => list.id != listId).toList();
+    state = state.copyWith(lists: newLists);
     _save();
   }
 
-  void editListTitle(int index, String newTitle) {
+  void editListTitle(String listId, String newTitle) {
     if (newTitle.trim().isEmpty) return;
-    final updated = [...state];
-    updated[index] = ShoppingList(title: newTitle, items: updated[index].items);
-    state = updated;
+    final updated = state.lists.map((list) {
+      if (list.id == listId) {
+        return list.copyWith(title: newTitle);
+      }
+      return list;
+    }).toList();
+    state = state.copyWith(lists: updated);
     _save();
   }
 
-  void addItem(int listIndex, String itemName) {
-    final newList = [...state];
-    newList[listIndex].items.add(ShoppingItem(name: itemName));
-    state = newList;
+  void addItem(String listId, String itemName) {
+    if (itemName.trim().isEmpty) return;
+    final updated = state.lists.map((list) {
+      if (list.id == listId) {
+        return list.copyWith(
+          items: [...list.items, ShoppingItem(name: itemName)],
+        );
+      }
+      return list;
+    }).toList();
+    state = state.copyWith(lists: updated);
     _save();
   }
 
-  void removeItem(int listIndex, int itemIndex) {
-    final newList = [...state];
-    newList[listIndex].items.removeAt(itemIndex);
-    state = newList;
+  void removeItem(String listId, String itemId) {
+    final updated = state.lists.map((list) {
+      if (list.id == listId) {
+        return list.copyWith(
+          items: list.items.where((item) => item.id != itemId).toList(),
+        );
+      }
+      return list;
+    }).toList();
+    state = state.copyWith(lists: updated);
     _save();
   }
 
-  void toggleItem(int listIndex, int itemIndex) {
-    final list = [...state];
-    final item = list[listIndex].items[itemIndex];
-    list[listIndex].items[itemIndex] = item.copyWith(checked: !item.checked);
-    state = list;
+  void toggleItem(String listId, String itemId) {
+    final updated = state.lists.map((list) {
+      if (list.id == listId) {
+        return list.copyWith(
+          items: list.items.map((item) {
+            if (item.id == itemId) {
+              return item.copyWith(checked: !item.checked);
+            }
+            return item;
+          }).toList(),
+        );
+      }
+      return list;
+    }).toList();
+    state = state.copyWith(lists: updated);
     _save();
   }
 
-  void editItemName(int listIndex, int itemIndex, String newName) {
+  void editItemName(String listId, String itemId, String newName) {
     if (newName.trim().isEmpty) return;
-    final list = [...state];
-    final item = list[listIndex].items[itemIndex];
-    list[listIndex].items[itemIndex] =
-        item.copyWith(name: newName); // preserve checked!
-    state = list;
+    final updated = state.lists.map((list) {
+      if (list.id == listId) {
+        return list.copyWith(
+          items: list.items.map((item) {
+            if (item.id == itemId) {
+              return item.copyWith(name: newName);
+            }
+            return item;
+          }).toList(),
+        );
+      }
+      return list;
+    }).toList();
+    state = state.copyWith(lists: updated);
     _save();
+  }
+
+  void clearError() {
+    state = state.copyWith(errorMessage: null);
   }
 }
