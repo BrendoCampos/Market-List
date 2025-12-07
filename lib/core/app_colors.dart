@@ -25,18 +25,18 @@ class AppColors {
   static const surface = Colors.white;
   static const surfaceVariant = Color(0xFFF3F4F6);
   
-  // Dark Theme
-  static const backgroundDark = Color(0xFF0F172A);
-  static const surfaceDark = Color(0xFF1E293B);
-  static const surfaceVariantDark = Color(0xFF334155);
+  // Dark Theme - Cores mais claras para melhor contraste
+  static const backgroundDark = Color(0xFF1A1A2E);
+  static const surfaceDark = Color(0xFF25274D);
+  static const surfaceVariantDark = Color(0xFF2E3047);
   
   // Text Colors
   static const textPrimary = Color(0xFF1F2937);
   static const textSecondary = Color(0xFF6B7280);
   static const textTertiary = Color(0xFF9CA3AF);
   
-  static const textPrimaryDark = Color(0xFFF9FAFB);
-  static const textSecondaryDark = Color(0xFFD1D5DB);
+  static const textPrimaryDark = Color(0xFFFFFFFF);
+  static const textSecondaryDark = Color(0xFFE0E0E0);
   
   // Border Colors
   static const border = Color(0xFFE5E7EB);
