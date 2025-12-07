@@ -32,7 +32,7 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
   final FocusNode _focusBudget15 = FocusNode();
   final FocusNode _focusBudget30 = FocusNode();
 
-  bool _isEditingName = false;
+  bool _isChartsExpanded = true;
 
   @override
   void initState() {
@@ -124,27 +124,21 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: _isEditingName
-            ? TextField(
-                controller: _nameController,
-                autofocus: true,
-                onEditingComplete: () {
-                  final newName = _nameController.text.trim();
-                  if (newName.isNotEmpty && newName != sheet.name) {
-                    controller.editSheet(sheet.copyWith(name: newName));
-                  }
-                  setState(() => _isEditingName = false);
-                },
-                decoration: const InputDecoration(border: InputBorder.none),
-                style:
-                    const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              )
-            : GestureDetector(
-                onTap: () => setState(() => _isEditingName = true),
-                child: Text(sheet.name,
-                    style: const TextStyle(
-                        fontSize: 20, fontWeight: FontWeight.bold)),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                sheet.name,
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.edit_outlined, size: 20),
+              tooltip: 'Editar nome',
+              onPressed: () => _showEditNameDialog(sheet, controller),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.delete, color: Colors.red),
@@ -164,75 +158,101 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Resumo Financeiro Header
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: Row(
+            // Resumo Financeiro Collapsible
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+              ),
+              child: Column(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.pie_chart,
-                      color: AppColors.primary,
-                      size: 20,
+                  InkWell(
+                    onTap: () => setState(() => _isChartsExpanded = !_isChartsExpanded),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.pie_chart,
+                              color: AppColors.primary,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Resumo Financeiro',
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          Icon(
+                            _isChartsExpanded ? Icons.expand_less : Icons.expand_more,
+                            color: AppColors.primary,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Resumo Financeiro',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
+                  AnimatedCrossFade(
+                    duration: const Duration(milliseconds: 300),
+                    crossFadeState: _isChartsExpanded
+                        ? CrossFadeState.showFirst
+                        : CrossFadeState.showSecond,
+                    firstChild: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 280,
+                              child: BudgetPieChart(
+                                title: 'Total Geral',
+                                budget: totalBudget,
+                                debt: totalDebt,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            SizedBox(
+                              width: 280,
+                              child: BudgetPieChart(
+                                title: 'Dia 15',
+                                budget: sheet.budget15,
+                                debt: total15,
+                                color: AppColors.secondary,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            SizedBox(
+                              width: 280,
+                              child: BudgetPieChart(
+                                title: 'Dia 30',
+                                budget: sheet.budget30,
+                                debt: total30,
+                                color: AppColors.accent,
+                              ),
+                            ),
+                          ],
                         ),
+                      ),
+                    ),
+                    secondChild: const SizedBox.shrink(),
                   ),
                 ],
               ),
             ).animate().fadeIn(duration: 400.ms),
-
-            // Pie Charts
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  // Total Chart
-                  SizedBox(
-                    width: 280,
-                    child: BudgetPieChart(
-                      title: 'Total Geral',
-                      budget: totalBudget,
-                      debt: totalDebt,
-                      color: AppColors.primary,
-                    ),
-                  ).animate().fadeIn(delay: 100.ms).slideX(begin: -0.2, end: 0),
-                  const SizedBox(width: 16),
-                  // Day 15 Chart
-                  SizedBox(
-                    width: 280,
-                    child: BudgetPieChart(
-                      title: 'Dia 15',
-                      budget: sheet.budget15,
-                      debt: total15,
-                      color: AppColors.secondary,
-                    ),
-                  ).animate().fadeIn(delay: 200.ms).slideX(begin: -0.2, end: 0),
-                  const SizedBox(width: 16),
-                  // Day 30 Chart
-                  SizedBox(
-                    width: 280,
-                    child: BudgetPieChart(
-                      title: 'Dia 30',
-                      budget: sheet.budget30,
-                      debt: total30,
-                      color: AppColors.accent,
-                    ),
-                  ).animate().fadeIn(delay: 300.ms).slideX(begin: -0.2, end: 0),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
             _buildBudgetFields(),
             const SizedBox(height: 16),
             _buildAddDebtToggle(),
@@ -315,6 +335,47 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
         style: FilledButton.styleFrom(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         ),
+      ),
+    );
+  }
+
+  void _showEditNameDialog(DebtSheet sheet, DebtsController controller) {
+    _nameController.text = sheet.name;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.edit, color: AppColors.primary),
+            SizedBox(width: 12),
+            Text('Editar Nome da Folha'),
+          ],
+        ),
+        content: TextFormField(
+          controller: _nameController,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Nome',
+            prefixIcon: Icon(Icons.description_outlined),
+          ),
+          validator: (v) => Validators.required(v, fieldName: 'Nome'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final newName = _nameController.text.trim();
+              if (newName.isNotEmpty && newName != sheet.name) {
+                controller.editSheet(sheet.copyWith(name: newName));
+              }
+              Navigator.pop(context);
+            },
+            child: const Text('Salvar'),
+          ),
+        ],
       ),
     );
   }
