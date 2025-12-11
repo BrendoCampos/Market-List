@@ -114,7 +114,7 @@
 
 **Widgets Reutilizáveis** – AnimatedListCard, BudgetPieChart, EmptyState, LoadingOverlay
 
-**Testes** – 19 unit tests implementados
+**Testes** – 30 unit tests implementados
 
 **Memória** – Dispose adequado de controllers e focus nodes
 
