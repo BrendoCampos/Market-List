@@ -8,43 +8,69 @@
 
 **Lista de Compras:**
 
-✅ Criar múltiplas listas de compras com títulos editáveis
+✅ Criar múltiplas listas com títulos editáveis via dialog
 
-✅ Adicionar, editar e excluir itens livremente
+✅ Adicionar, editar e excluir itens com animações
 
-✅ Marcar itens como concluídos (com visual riscado)
+✅ Marcar itens como concluídos (checkbox customizado)
 
-✅ Contador de progresso (X/Y itens concluídos)
+✅ Barra de progresso visual (X/Y itens concluídos)
 
-✅ Expandir/colapsar listas
+✅ Expandir/colapsar listas com animação
+
+✅ Busca em tempo real por listas e itens
+
+✅ Compartilhar listas via share_plus
 
 **Calculadora de Compras:**
 
-✅ Adicionar produtos com nome, quantidade e preço
+✅ Adicionar produtos com validação de campos
 
-✅ Cálculo automático do total (quantidade × preço)
+✅ Cálculo automático de subtotal e total geral
 
-✅ Editar e remover produtos
+✅ Editar e remover produtos com confirmação
 
 ✅ Limpar todos os itens
 
+✅ Card de total com gradiente e destaque visual
+
+✅ Compartilhar cálculo via share_plus
+
 **Controle de Dívidas Mensais:**
 
-✅ Criar fichas de dívidas organizadas
+✅ Criar e editar folhas de dívidas
 
-✅ Definir orçamento quinzenal e mensal
+✅ Definir orçamento para dia 15 e dia 30
 
-✅ Registrar dívidas com título, valor e dia de vencimento
+✅ Registrar dívidas com título, valor e vencimento
 
-✅ Cálculo automático do total por ficha
+✅ Marcar dívidas como pagas com checkbox
+
+✅ **Gráficos de pizza interativos** (Total, Dia 15, Dia 30)
+
+✅ Indicadores visuais de déficit/saldo
+
+✅ Resumo financeiro expansível/colapsável
+
+✅ Duplicar e compartilhar folhas
 
 **Geral:**
 
-✅ Tema claro e escuro com alternância persistente
+✅ **Design moderno com Material 3** e Google Fonts (Inter)
 
-✅ Persistência local de todos os dados
+✅ **Tema roxo (#6366F1)** com gradientes e animações
 
-✅ Visual leve, moderno e adaptado a smartphones
+✅ Tema claro e escuro otimizado para legibilidade
+
+✅ **Bottom Navigation** com 4 abas principais
+
+✅ Persistência local com Repository Pattern
+
+✅ Tratamento de erros com feedback visual
+
+✅ Animações fluidas com flutter_animate
+
+✅ Ícone personalizado do app
 
 📱 Módulos principais:
 
@@ -56,7 +82,7 @@
 
 **Dívidas Mensais:** Controle de orçamento e dívidas com vencimentos
 
-**Menu Lateral:** Navegação entre módulos e alternância de tema
+**Navegação:** Bottom navigation bar com 4 módulos + drawer para configurações
 
 🛠 Tecnologias utilizadas:
 
@@ -70,25 +96,27 @@
 
 **UUID** – Geração de IDs únicos para dívidas
 
-**flutter_launcher_icons** – Configuração de ícone do app
+**google_fonts** – Tipografia Inter para design moderno
 
-💡 Melhorias futuras:
+**flutter_animate** – Animações e transições suaves
 
-Sugestão automática de itens baseada em histórico
+**fl_chart** – Gráficos de pizza interativos
 
-Histórico de compras finalizadas
+**flutter_launcher_icons** – Configuração de ícone personalizado
 
-Backup/Restaurar dados na nuvem
+🎨 Destaques de Design:
 
-Compartilhar listas via WhatsApp ou e-mail
+**Arquitetura Limpa** – Repository Pattern com separação de camadas
 
-Categorização de listas (Farmácia, Supermercado, etc.)
+**Gerenciamento de Estado** – Riverpod com StateNotifier e estados imutáveis
 
-Notificações de vencimento de dívidas
+**Validações** – Validators reutilizáveis para formulários
 
-Gráficos de gastos mensais
+**Widgets Reutilizáveis** – AnimatedListCard, BudgetPieChart, EmptyState, LoadingOverlay
 
-Widget de lista ativa na tela inicial do celular
+**Testes** – 19 unit tests implementados
+
+**Memória** – Dispose adequado de controllers e focus nodes
 
 👨‍💻 Autor
 
