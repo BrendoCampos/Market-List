@@ -162,9 +162,9 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
             Container(
               margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.05),
+                color: AppColors.primary.withOpacity(0.05),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                border: Border.all(color: AppColors.primary.withOpacity(0.2)),
               ),
               child: Column(
                 children: [
@@ -178,7 +178,7 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.1),
+                              color: AppColors.primary.withOpacity( 0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: const Icon(
@@ -270,10 +270,10 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [AppColors.primary.withValues(alpha: 0.05), AppColors.secondary.withValues(alpha: 0.05)],
+          colors: [AppColors.primary.withOpacity(0.05), AppColors.secondary.withOpacity(0.05)],
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -469,10 +469,10 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
               margin: const EdgeInsets.only(bottom: 12, top: 8),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [color.withValues(alpha: 0.1), color.withValues(alpha: 0.05)],
+                  colors: [color.withOpacity(0.1), color.withOpacity(0.05)],
                 ),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: color.withValues(alpha: 0.3)),
+                border: Border.all(color: color.withOpacity(0.3)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -536,13 +536,13 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
             : LinearGradient(
                 colors: [
                   Colors.white,
-                  AppColors.primary.withValues(alpha: 0.02),
+                  AppColors.primary.withOpacity(0.02),
                 ],
               ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isPaid
-              ? AppColors.success.withValues(alpha: 0.3)
+              ? AppColors.success.withOpacity(0.3)
               : AppColors.border,
           width: 1.5,
         ),
@@ -591,7 +591,7 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.1),
+                              color: AppColors.primary.withOpacity( 0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
@@ -607,7 +607,7 @@ class _DebtSheetDetailPageState extends ConsumerState<DebtSheetDetailPage> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: AppColors.secondary.withValues(alpha: 0.1),
+                              color: AppColors.secondary.withOpacity( 0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Row(

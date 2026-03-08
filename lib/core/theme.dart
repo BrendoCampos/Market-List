@@ -29,7 +29,7 @@ final ThemeData lightTheme = ThemeData(
     bodyMedium: GoogleFonts.inter(fontSize: 14, color: AppColors.textSecondary),
     labelLarge: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500),
   ),
-  cardTheme: CardThemeData(
+  cardTheme: CardTheme(
     elevation: 0,
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     color: AppColors.surface,
@@ -117,7 +117,7 @@ final ThemeData darkTheme = ThemeData(
     bodyMedium: GoogleFonts.inter(fontSize: 14, color: AppColors.textSecondaryDark),
     labelLarge: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500),
   ),
-  cardTheme: CardThemeData(
+  cardTheme: CardTheme(
     elevation: 0,
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     color: AppColors.surfaceDark,
